@@ -1,6 +1,6 @@
 // seed.js
 const mongoose = require("mongoose");
-require("dotenv").config({ path: "./server/.env" });
+require("dotenv").config({ path: "./.env" });
 
 
 const User = require("./server/models/User");

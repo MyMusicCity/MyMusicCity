@@ -2,6 +2,9 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 require("dotenv").config();
+console.log("DEBUG .env keys:", Object.keys(process.env));
+console.log("DEBUG MONGO_URI value:", process.env.MONGO_URI);
+
 
 const app = express();
 
