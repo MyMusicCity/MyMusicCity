@@ -1,11 +1,10 @@
 // seed.js
-const mongoose = require("mongoose");
+const mongoose = require("./server/mongoose");
 require("dotenv").config({ path: "./.env" });
-
 
 const User = require("./server/models/User");
 const Event = require("./server/models/Event");
-const Rsvp = require("./server/models/Rsvp");
+const Rsvp  = require("./server/models/Rsvp");
 
 const mockUsers = [
   { username: "jake",  email: "jake@example.com",  password: "testpass1" },
@@ -31,12 +30,30 @@ const mockRsvps = [
 async function seed() {
   try {
     if (!process.env.MONGO_URI) throw new Error("Missing MONGO_URI in .env");
-    await mongoose.connect(process.env.MONGO_URI);
 
+    console.log("Connecting to:", process.env.MONGO_URI);
+    await mongoose.connect(process.env.MONGO_URI, {
+      dbName: "mymusiccity",
+      serverSelectionTimeoutMS: 5000,
+    });
+    console.log("✅ Connected to MongoDB");
+    console.log("Connected to DB:", mongoose.connection.name);
+
+    // Show that models are actually registered on THIS mongoose instance
+    console.log("Registered models:", mongoose.modelNames());
+
+    // Ensure indexes (esp. Rsvp unique compound index)
+    await Promise.all([
+      User.syncIndexes(),
+      Event.syncIndexes(),
+      Rsvp.syncIndexes(),
+    ]);
+
+    // Clear collections (ok if they don't exist yet)
     await Promise.all([
       User.deleteMany({}),
       Event.deleteMany({}),
-      Rsvp.deleteMany({})
+      Rsvp.deleteMany({}),
     ]);
 
     const users = await User.insertMany(mockUsers);
@@ -47,22 +64,22 @@ async function seed() {
       description: e.description,
       date: e.date,
       location: e.location,
-      createdBy: userByUsername[e.createdByUsername]._id
+      createdBy: userByUsername[e.createdByUsername]._id,
     }));
     const events = await Event.insertMany(eventsToInsert);
     const eventByTitle = Object.fromEntries(events.map(ev => [ev.title, ev]));
 
     const rsvpsToInsert = mockRsvps.map(r => ({
-      event: eventByTitle[r.eventTitle]._id,
-      user:  userByUsername[r.userUsername]._id,
-      status: r.status
+      event:  eventByTitle[r.eventTitle]._id,
+      user:   userByUsername[r.userUsername]._id,
+      status: r.status,
     }));
     await Rsvp.insertMany(rsvpsToInsert);
 
     console.log("✅ Seed complete:");
-    console.log(`   Users:    ${users.length}`);
-    console.log(`   Events:   ${events.length}`);
-    console.log(`   RSVPs:    ${rsvpsToInsert.length}`);
+    console.log(`   Users:  ${users.length}`);
+    console.log(`   Events: ${events.length}`);
+    console.log(`   RSVPs:  ${rsvpsToInsert.length}`);
   } catch (err) {
     console.error("❌ Seed failed:", err.message);
   } finally {
