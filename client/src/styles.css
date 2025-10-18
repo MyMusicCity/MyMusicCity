@@ -1,0 +1,113 @@
+body {
+  margin: 0;
+  font-family: "Inter", sans-serif;
+  background-color: #f7f7f5;
+}
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #d4c09d;
+  padding: 10px 20px;
+}
+
+.logo {
+  font-weight: bold;
+  font-size: 1.5rem;
+  color: black;
+  text-decoration: none;
+}
+
+.nav-icons a {
+  margin-left: 20px;
+  font-size: 1.4rem;
+  text-decoration: none;
+}
+
+.home {
+  padding: 20px;
+}
+
+.event-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.event-card {
+  background: white;
+  border-radius: 10px;
+  overflow: hidden;
+  text-decoration: none;
+  color: black;
+  width: 300px;
+  transition: transform 0.2s ease;
+}
+
+.event-card:hover {
+  transform: scale(1.02);
+}
+
+.event-info {
+  padding: 10px;
+}
+
+.event-details {
+  padding: 20px;
+  background: white;
+  margin: 20px;
+  border-radius: 10px;
+}
+
+.rsvp-btn {
+  background: #d4c09d;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.messages-page {
+  display: flex;
+}
+
+.chat-sidebar {
+  width: 30%;
+  background: #f3eee7;
+  padding: 10px;
+}
+
+.chat-window {
+  width: 70%;
+  background: white;
+  padding: 20px;
+}
+
+.profile-card {
+  background: white;
+  width: 300px;
+  margin: 50px auto;
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+}
+
+.profile-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: #a9a4dc;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 2rem;
+  margin: 0 auto 10px;
+}
+
+.spinner {
+  text-align: center;
+  margin: 40px;
+  font-size: 1.2rem;
+}
