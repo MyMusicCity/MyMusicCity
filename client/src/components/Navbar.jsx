@@ -1,17 +1,23 @@
 import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { FaHeart, FaUser } from "react-icons/fa";
+import { FaCommentDots } from "react-icons/fa6";
+import "../styles.css";
 
 export default function Navbar() {
-  const location = useLocation();
-  const isActive = (path) => (location.pathname === path ? "active" : "");
-
   return (
     <nav className="navbar">
-      <Link to="/" className="logo">MyMusicCity</Link>
+      <Link to="/" className="nav-logo">MyMusicCity</Link>
       <div className="nav-icons">
-        <Link to="/messages" className={isActive("/messages")}>💬</Link>
-        <Link to="/rsvps" className={isActive("/rsvps")}>❤️</Link>
-        <Link to="/profile" className={isActive("/profile")}>👤</Link>
+        <Link to="/messages">
+          <FaCommentDots className="nav-icon" title="Messages" />
+        </Link>
+        <Link to="/rsvps">
+          <FaHeart className="nav-icon" title="My RSVPs" />
+        </Link>
+        <Link to="/profile">
+          <FaUser className="nav-icon" title="Profile" />
+        </Link>
       </div>
     </nav>
   );

@@ -1,37 +1,42 @@
-import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { getEventById, postRsvp } from "../api";
+import React from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import "../styles.css";
 
 export default function EventDetails() {
   const { id } = useParams();
-  const [event, setEvent] = useState(null);
-  const [rsvpStatus, setRsvpStatus] = useState("none");
-  const userId = "66dabc1234"; // temporary placeholder for demo
+  const navigate = useNavigate();
+  const { state } = useLocation(); // 👈 Grab event data passed from Home
 
-  useEffect(() => {
-    getEventById(id).then((data) => setEvent(data));
-  }, [id]);
+  const event = state?.event;
 
-  async function handleRsvp() {
-    const newStatus = rsvpStatus === "going" ? "interested" : "going";
-    await postRsvp(event._id, userId, newStatus);
-    setRsvpStatus(newStatus);
+  if (!event) {
+    return (
+      <div style={{ padding: "2rem" }}>
+        <h2>Event not found</h2>
+        <button className="back-btn" onClick={() => navigate("/")}>
+          ← Back to Home
+        </button>
+      </div>
+    );
   }
-
-  if (!event) return <p>Loading...</p>;
 
   return (
     <div className="event-details">
-      <img src={event.image || "https://placehold.co/800x300"} alt="Event" />
-      <h2>{event.title}</h2>
-      <p className="date-time">{new Date(event.date).toLocaleString()}</p>
-      <p className="location">📍 {event.location}</p>
-
-      <button className="rsvp-btn" onClick={handleRsvp}>
-        ❤️ {rsvpStatus === "going" ? "Going" : "RSVP"}
+      <button className="back-btn" onClick={() => navigate(-1)}>
+        ← Back
       </button>
 
-      <p>{event.description}</p>
+      <img src={event.image} alt={event.title} className="event-details-img" />
+
+      <div className="event-details-content">
+        <h1>{event.title}</h1>
+        <p className="event-date">{event.date}</p>
+        <p className="event-location">📍 {event.location}</p>
+        <p className="event-description">
+          {`Join us for ${event.title}, featuring incredible music and a vibrant Nashville crowd!`}
+        </p>
+        <button className="rsvp-btn">RSVP</button>
+      </div>
     </div>
   );
 }
