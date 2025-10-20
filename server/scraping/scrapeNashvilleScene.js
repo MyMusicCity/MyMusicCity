@@ -1,67 +1,115 @@
 // server/scraping/scrapeNashvilleScene.js
-const axios = require("axios");
-const cheerio = require("cheerio");
+const path = require("path");
+const puppeteer = require("puppeteer");
 const mongoose = require("../mongoose");
 const Event = require("../models/Event");
-require("dotenv").config();
+require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 
-const TARGET_URL = "https://www.nashvillescene.com/music/events/";
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-async function scrapeNashvilleScene() {
+if (!process.env.MONGO_URI) {
+  console.error("❌ MONGO_URI not found in .env file!");
+  process.exit(1);
+}
+
+async function scrapeDo615() {
+  let browser;
   try {
     console.log("🌐 Connecting to MongoDB...");
     await mongoose.connect(process.env.MONGO_URI, { dbName: "mymusiccity" });
 
-    console.log("📄 Fetching event listings...");
-    const { data } = await axios.get(TARGET_URL);
-    const $ = cheerio.load(data);
+    console.log("🚀 Launching Puppeteer...");
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+    const page = await browser.newPage();
 
-    const events = [];
+    console.log("🌍 Navigating to https://do615.com/events ...");
+    await page.goto("https://do615.com/events", {
+      waitUntil: "networkidle2",
+      timeout: 60000,
+    });
 
-    // These selectors may need tweaking depending on the site's structure
-    $(".event-listing, .event-item, article").each((_, el) => {
-      const title =
-        $(el).find("h2, .event-title, .listing-title").first().text().trim();
-      const date =
-        $(el).find(".event-date, time, .listing-date").first().text().trim();
-      const location =
-        $(el).find(".event-location, .venue-name").first().text().trim();
+    await page.waitForSelector(".ds-listing.event-card", { timeout: 15000 });
+    console.log("📸 Extracting event data...");
 
-      if (title && date) {
-        events.push({
+    const events = await page.evaluate(() => {
+      const items = Array.from(document.querySelectorAll(".ds-listing.event-card"));
+      return items.map((el) => {
+        const title =
+          el.querySelector(".ds-listing-event-title-text")?.textContent?.trim() ||
+          "Untitled Event";
+        const timeText =
+          el.querySelector(".ds-event-time")?.textContent?.trim() || "TBA";
+        const location =
+          el.querySelector(".ds-venue-name [itemprop='name']")?.textContent?.trim() ||
+          "Nashville, TN";
+        const image =
+          el.querySelector(".ds-cover-image")?.style?.backgroundImage
+            ?.replace(/url\(['"]?(.*?)['"]?\)/, "$1") || null;
+        const url = el.querySelector(".ds-listing-event-title")?.href || null;
+
+        return {
           title,
-          description: "Scraped from Nashville Scene",
-          date,
-          location: location || "Nashville, TN",
-          createdBy: null, // optional: you can assign a system user later
-        });
-      }
+          dateText: timeText,
+          location,
+          image,
+          url,
+        };
+      });
     });
 
     console.log(`🪄 Found ${events.length} events`);
+
     if (events.length === 0) {
-      console.log("⚠️ No events found — check HTML selectors");
+      console.log("⚠️ No events found — check selectors or page structure.");
       return;
     }
 
-    // Optional: prevent duplicate titles
-    const titles = events.map((e) => e.title);
+    // Normalize and prepare data
+    const formattedEvents = events.map((e) => {
+      let parsedDate = null;
+      try {
+        const today = new Date();
+        parsedDate = new Date(`${today.toISOString().split("T")[0]} ${e.dateText}`);
+        if (isNaN(parsedDate)) parsedDate = today;
+      } catch {
+        parsedDate = new Date();
+      }
+
+      return {
+        title: e.title,
+        description: "Scraped from Do615 (Nashville Scene network)",
+        date: parsedDate,
+        location: e.location,
+        image: e.image,
+        url: e.url,
+        createdBy: null, // ✅ avoid ObjectId casting issue
+        source: "do615", // optional: mark origin
+      };
+    });
+
+    // Avoid duplicates
+    const titles = formattedEvents.map((e) => e.title);
     const existing = await Event.find({ title: { $in: titles } }).select("title");
     const existingTitles = new Set(existing.map((e) => e.title));
 
-    const newEvents = events.filter((e) => !existingTitles.has(e.title));
+    const newEvents = formattedEvents.filter((e) => !existingTitles.has(e.title));
+
     if (newEvents.length === 0) {
       console.log("✅ No new events to add (all already exist)");
     } else {
       await Event.insertMany(newEvents);
-      console.log(`✅ Added ${newEvents.length} new events`);
+      console.log(`✅ Added ${newEvents.length} new events to the database`);
     }
   } catch (err) {
     console.error("❌ Scrape failed:", err.message);
   } finally {
+    if (browser) await browser.close();
     await mongoose.connection.close();
     console.log("🔌 MongoDB connection closed.");
   }
 }
 
-scrapeNashvilleScene();
+scrapeDo615();
