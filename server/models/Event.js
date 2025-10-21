@@ -19,12 +19,12 @@ const EventSchema = new mongoose.Schema({
   createdBy: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: "User", 
-    required: false,     // ✅ allow scraper to skip user reference
+    required: false,     // allow scraper to skip user reference
     default: null 
   },
   source: { 
     type: String, 
-    default: "manual"    // ✅ helpful for tracking (e.g. "do615", "user", etc.)
+    default: "manual"    // helpful for tracking (e.g. "do615", "user", etc.)
   },
   createdAt: { 
     type: Date, 
