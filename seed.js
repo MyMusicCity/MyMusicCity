@@ -36,7 +36,7 @@ async function seed() {
       dbName: "mymusiccity",
       serverSelectionTimeoutMS: 5000,
     });
-    console.log("✅ Connected to MongoDB");
+    console.log("Connected to MongoDB");
     console.log("Connected to DB:", mongoose.connection.name);
 
     // Show that models are actually registered on THIS mongoose instance
@@ -76,12 +76,12 @@ async function seed() {
     }));
     await Rsvp.insertMany(rsvpsToInsert);
 
-    console.log("✅ Seed complete:");
+    console.log("Seed complete:");
     console.log(`   Users:  ${users.length}`);
     console.log(`   Events: ${events.length}`);
     console.log(`   RSVPs:  ${rsvpsToInsert.length}`);
   } catch (err) {
-    console.error("❌ Seed failed:", err.message);
+    console.error("Seed failed:", err.message);
   } finally {
     await mongoose.connection.close();
   }
