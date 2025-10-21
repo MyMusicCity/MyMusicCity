@@ -5,7 +5,7 @@ import "../styles.css";
 export default function EventDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { state } = useLocation(); // 👈 Grab event data passed from Home
+  const { state } = useLocation(); // Grab event data passed from Home
 
   const event = state?.event;
 
