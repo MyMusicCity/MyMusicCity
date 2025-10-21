@@ -24,7 +24,7 @@ const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI;
 
 if (!MONGO_URI) {
-  console.error("❌ Missing MONGO_URI in .env file");
+  console.error("Missing MONGO_URI in .env file");
   process.exit(1);
 }
 
@@ -52,7 +52,7 @@ app.get("/api/events", async (req, res) => {
   }
 });
 
-// ✅ NEW: Get single event by ID
+// Get single event by ID
 app.get("/api/events/:id", async (req, res) => {
   try {
     const event = await Event.findById(req.params.id).populate("createdBy", "username email");
@@ -77,7 +77,7 @@ app.get("/api/rsvps", async (req, res) => {
   }
 });
 
-// ✅ NEW: Create a new RSVP
+// Create a new RSVP
 app.post("/api/rsvps", async (req, res) => {
   try {
     const { eventId, userId, status } = req.body;
@@ -112,11 +112,11 @@ app.post("/api/rsvps", async (req, res) => {
 mongoose
   .connect(MONGO_URI, { dbName: "mymusiccity" })
   .then(() => {
-    console.log("✅ Connected to MongoDB Atlas");
+    console.log("Connected to MongoDB Atlas");
     app.listen(PORT, () => {
-      console.log(`✅ Server running on http://localhost:${PORT}`);
+      console.log(`Server running on http://localhost:${PORT}`);
     });
   })
   .catch((err) => {
-    console.error("❌ MongoDB connection error:", err);
+    console.error("MongoDB connection error:", err);
   });
