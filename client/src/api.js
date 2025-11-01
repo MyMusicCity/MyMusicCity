@@ -1,25 +1,48 @@
-const API_BASE = process.env.REACT_APP_API_URL;
+// client/src/api.js
+const API_BASE = (process.env.REACT_APP_API_URL || "").replace(/\/$/, "");
 
+// --- Safe health check (won't break UI) ---
+export async function ping() {
+  if (!API_BASE) return { ok: false, reason: "no API base url configured" };
+  try {
+    const res = await fetch(`${API_BASE}/healthz`, { credentials: "include" });
+    if (!res.ok) return { ok: false, status: res.status };
+    return res.json(); // { ok: true }
+  } catch (e) {
+    return { ok: false, error: e?.message || "network error" };
+  }
+}
+
+// --- Your existing endpoints, now sanitized ---
 export async function getEvents() {
-  const res = await fetch(`${API_BASE}/api/events`);
+  if (!API_BASE) return []; // no API configured -> keep using mock in UI
+  const res = await fetch(`${API_BASE}/api/events`, { credentials: "include" });
+  if (!res.ok) throw new Error(`Events failed: ${res.status}`);
   return res.json();
 }
 
 export async function getEventById(id) {
-  const res = await fetch(`${API_BASE}/api/events/${id}`);
+  if (!API_BASE) throw new Error("No API base URL configured");
+  const res = await fetch(`${API_BASE}/api/events/${id}`, { credentials: "include" });
+  if (!res.ok) throw new Error(`Event failed: ${res.status}`);
   return res.json();
 }
 
 export async function postRsvp(eventId, userId, status = "going") {
+  if (!API_BASE) throw new Error("No API base URL configured");
   const res = await fetch(`${API_BASE}/api/rsvps`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ eventId, userId, status }),
   });
+  if (!res.ok) throw new Error(`RSVP failed: ${res.status}`);
   return res.json();
 }
 
 export async function getUserRsvps(userId) {
-  const res = await fetch(`${API_BASE}/api/rsvps/user/${userId}`);
+  if (!API_BASE) return [];
+  const res = await fetch(`${API_BASE}/api/rsvps/user/${userId}`, { credentials: "include" });
+  if (!res.ok) throw new Error(`User RSVPs failed: ${res.status}`);
   return res.json();
 }
