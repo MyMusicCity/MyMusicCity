@@ -1,8 +1,7 @@
 // server/index.js
 const express = require("express");
-const mongoose = require("./mongoose"); // shared instance
+const mongoose = require("./mongoose");
 const cors = require("cors");
-const path = require("path");
 require("dotenv").config();
 
 const User = require("./models/User");
@@ -17,21 +16,23 @@ const ALLOWLIST = [
   "http://localhost:3000", // local dev
 ];
 
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      const ok =
-        !origin || // curl/server-to-server
-        ALLOWLIST.includes(origin) ||
-        /\.vercel\.app$/.test(origin); // Vercel previews
-      cb(null, ok);
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-app.options("/*", cors());
+const corsOptions = {
+  origin: (origin, cb) => {
+    const ok =
+      !origin || // curl/server-to-server
+      ALLOWLIST.includes(origin) ||
+      /\.vercel\.app$/.test(origin); // Vercel previews
+    cb(null, ok);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+// ✅ Express 5-safe preflight handler (use RegExp instead of "*")
+app.options(/^\/.*$/, cors(corsOptions));
 /* ------------------------------------------------------------------------ */
 
 app.use(express.json());
@@ -132,16 +133,10 @@ app.post("/api/rsvps", async (req, res) => {
   }
 });
 
-// ===== Serve frontend (for Render static fallback) =====
-const clientBuildPath = path.join(__dirname, "../client/build");
-app.use(express.static(clientBuildPath));
+// NOTE: No SPA fallback routes here because React is on Vercel.
+// If you ever want to serve the client from Render, add a regex fallback like:
+// app.get(/^\/(?!api).*/, (_req, res) => { ... });
 
-// FIXED: wildcard route now works with modern Express
-app.get("/*", (req, res) => {
-  res.sendFile(path.join(clientBuildPath, "index.html"));
-});
-
-// ===== Start Server =====
 mongoose
   .connect(MONGO_URI, { dbName: "mymusiccity" })
   .then(() => {
