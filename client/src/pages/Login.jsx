@@ -1,14 +1,16 @@
 // client/src/pages/Login.jsx
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { loginUser, signupUser } from "../api";
 import "../styles.css";
+import { AuthContext } from "../AuthContext";
 
 export default function Login() {
   const navigate = useNavigate();
   const [isSignup, setIsSignup] = useState(false);
   const [form, setForm] = useState({ username: "", email: "", password: "" });
   const [error, setError] = useState("");
+  const { setToken } = useContext(AuthContext);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -21,11 +23,17 @@ export default function Login() {
         : await loginUser(form.email, form.password);
 
       // ✅ Store token and user info
-      if (res?.token) localStorage.setItem("token", res.token);
+      if (res?.token) {
+        // persist
+        localStorage.setItem("token", res.token);
+        setToken(res.token); // update context so App re-renders
+      }
       if (res?.user) localStorage.setItem("user", JSON.stringify(res.user));
 
-      // ✅ Redirect to profile page after success
-      navigate("/profile");
+  // ✅ Redirect to home page after success. Schedule on next tick so
+  // React state from setToken has a chance to update and App's route
+  // guards will see the new token.
+  setTimeout(() => navigate("/", { replace: true }), 0);
     } catch (err) {
       console.error("Login/signup error:", err);
       setError(err.message || "Something went wrong");
