@@ -43,6 +43,7 @@ const MOCK_EVENTS = [
 export default function Home() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState("Most Popular");
 
   useEffect(() => {
     // --- Silent connectivity check to your deployed API (no UI change) ---
@@ -118,20 +119,27 @@ export default function Home() {
             <input type="text" placeholder="Search events" />
           </div>
           <div>
-            <label>Sort By:&nbsp;</label>
-            <select defaultValue="Most Popular">
-              <option>Most Popular</option>
-              <option>Soonest</option>
-            </select>
-          </div>
+              <label>Sort By:&nbsp;</label>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option>Most Popular</option>
+                <option>Soonest</option>
+              </select>
+            </div>
         </div>
 
         <p style={{ margin: "8px 0 16px" }}>{events.length} Results found</p>
 
         <div className="grid">
-          {events.map((e) => (
-            <EventCard key={e._id || e.id} event={e} />
-          ))}
+          {(() => {
+            const list = [...events];
+            if (sortBy === "Soonest") {
+              list.sort((a, b) => new Date(a.date) - new Date(b.date));
+            } else {
+              // Most Popular -> fall back to newest first (by date) when no attendee info
+              list.sort((a, b) => new Date(b.date) - new Date(a.date));
+            }
+            return list.map((e) => <EventCard key={e._id || e.id} event={e} />);
+          })()}
         </div>
       </section>
     </div>

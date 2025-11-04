@@ -138,7 +138,10 @@ app.post("/api/rsvps", async (req, res) => {
         .status(400)
         .json({ error: "RSVP already exists for this event and user" });
     console.error("RSVP create error:", err && err.stack ? err.stack : err);
-    res.status(500).json({ error: "Failed to create RSVP" });
+    // Surface the error message to make client debugging easier while still
+    // returning a 500 status. This is safe for now because messages are generic
+    // (if you want to avoid leaking info in production, return a generic message).
+    res.status(500).json({ error: err.message || "Failed to create RSVP" });
   }
 });
 
