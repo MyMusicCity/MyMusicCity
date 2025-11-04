@@ -11,12 +11,15 @@ export default function Login() {
   const [form, setForm] = useState({ username: "", email: "", password: "" });
   const [error, setError] = useState("");
   const { setToken } = useContext(AuthContext);
+  const { setUser } = useContext(AuthContext);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     try {
       const res = isSignup
         ? await signupUser(form.username, form.email, form.password)
@@ -28,15 +31,18 @@ export default function Login() {
         localStorage.setItem("token", res.token);
         setToken(res.token); // update context so App re-renders
       }
-      if (res?.user) localStorage.setItem("user", JSON.stringify(res.user));
+      if (res?.user) {
+        localStorage.setItem("user", JSON.stringify(res.user));
+        setUser(res.user);
+      }
 
-  // ✅ Redirect to home page after success. Schedule on next tick so
-  // React state from setToken has a chance to update and App's route
-  // guards will see the new token.
-  setTimeout(() => navigate("/", { replace: true }), 0);
+      // ✅ Redirect to home page after success
+      navigate("/", { replace: true });
     } catch (err) {
       console.error("Login/signup error:", err);
       setError(err.message || "Something went wrong");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -72,7 +78,7 @@ export default function Login() {
             required
           />
           {error && <p className="error">{error}</p>}
-          <button type="submit">{isSignup ? "Sign Up" : "Log In"}</button>
+          <button type="submit" disabled={loading}>{loading ? (isSignup ? "Signing up..." : "Logging in...") : (isSignup ? "Sign Up" : "Log In")}</button>
         </form>
         <p>
           {isSignup ? "Already have an account?" : "Don’t have an account?"}{" "}

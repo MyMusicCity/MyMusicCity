@@ -54,9 +54,16 @@ export async function signupUser(username, email, password) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, email, password }),
   });
-  console.log("Response status:", res.status);
-  if (!res.ok) throw new Error("Signup failed");
-  return res.json();
+  // parse response and surface server error messages when present
+  let payload;
+  try {
+    payload = await res.json();
+  } catch (e) {
+    if (!res.ok) throw new Error(`Signup failed: status ${res.status}`);
+    return {};
+  }
+  if (!res.ok) throw new Error(payload?.error || payload?.message || `Signup failed: ${res.status}`);
+  return payload;
 }
 
 
@@ -66,7 +73,15 @@ export async function loginUser(email, password) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  if (!res.ok) throw new Error("Login failed");
-  return res.json();
+  // Parse JSON and include server-provided error if available
+  let payload;
+  try {
+    payload = await res.json();
+  } catch (e) {
+    if (!res.ok) throw new Error(`Login failed: status ${res.status}`);
+    return {};
+  }
+  if (!res.ok) throw new Error(payload?.error || payload?.message || `Login failed: ${res.status}`);
+  return payload;
 }
 
