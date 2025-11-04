@@ -141,8 +141,16 @@ mongoose
   .connect(MONGO_URI, { dbName: "mymusiccity" })
   .then(() => {
     console.log("✅ Connected to MongoDB Atlas");
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
+    // Bind to all network interfaces so platform (Render, Heroku, etc.) can detect the open port.
+    const HOST = process.env.HOST || "0.0.0.0";
+    app.listen(PORT, HOST, () => {
+      console.log(`🚀 Server running on http://${HOST}:${PORT}`);
+      console.log(`Binding host: ${HOST}; ENV PORT=${process.env.PORT}; NODE_ENV=${process.env.NODE_ENV}`);
+      if (process.env.PORT === "5000") {
+        console.warn(
+          "⚠️  Warning: PORT is set to 5000. If you're deploying to a platform that assigns a dynamic port (Render/Heroku), remove hard-coded PORT from environment variables so the host can provide the port."
+        );
+      }
     });
   })
   .catch((err) => {
