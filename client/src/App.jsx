@@ -1,23 +1,50 @@
 import React from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import EventDetails from "./pages/EventDetails";
 import Messages from "./pages/Messages";
 import Profile from "./pages/Profile";
 import RSVPs from "./pages/RSVPs";
+import Login from "./pages/Login"; 
 
 export default function App() {
+  const token = localStorage.getItem("token"); // check if user is logged in
+
   return (
     <div className="app">
-      <Navbar />
+      {/* Only show navbar if user is logged in */}
+      {token && <Navbar />}
+
       <div className="content">
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/event/:id" element={<EventDetails />} />
-          <Route path="/messages" element={<Messages />} />
-          <Route path="/rsvps" element={<RSVPs />} />
-          <Route path="/profile" element={<Profile />} />
+          {/* Public route */}
+          <Route path="/login" element={<Login />} />
+
+          {/* Private routes (require login) */}
+          <Route
+            path="/"
+            element={token ? <Home /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/event/:id"
+            element={token ? <EventDetails /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/messages"
+            element={token ? <Messages /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/rsvps"
+            element={token ? <RSVPs /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/profile"
+            element={token ? <Profile /> : <Navigate to="/login" />}
+          />
+
+          {/* Catch-all redirect */}
+          <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </div>
     </div>

@@ -3,25 +3,30 @@ const express = require("express");
 const mongoose = require("./mongoose");
 const cors = require("cors");
 require("dotenv").config();
+console.log("Loaded PORT:", process.env.PORT);
+
 
 const User = require("./models/User");
 const Event = require("./models/Event");
 const Rsvp = require("./models/Rsvp");
+
+// Import routes
+const authRoutes = require("./routes/auth");
 
 const app = express();
 
 /* -------------------------- CORS Configuration -------------------------- */
 const ALLOWLIST = [
   process.env.CORS_ORIGIN, // e.g. https://my-music-city.vercel.app
-  "http://localhost:3000", // local dev
+  "http://localhost:3000", // React local dev
 ];
 
 const corsOptions = {
   origin: (origin, cb) => {
     const ok =
-      !origin || // curl/server-to-server
+      !origin ||
       ALLOWLIST.includes(origin) ||
-      /\.vercel\.app$/.test(origin); // Vercel previews
+      /\.vercel\.app$/.test(origin);
     cb(null, ok);
   },
   credentials: true,
@@ -31,28 +36,20 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-// ✅ Express 5-safe preflight handler (use RegExp instead of "*")
 app.options(/^\/.*$/, cors(corsOptions));
-/* ------------------------------------------------------------------------ */
-
 app.use(express.json());
+/* ------------------------------------------------------------------------ */
 
 // ===== Health & Root Routes =====
 app.get("/healthz", (_req, res) => res.status(200).json({ ok: true }));
 app.get("/", (_req, res) => res.send("Hello from MyMusicCity backend!"));
 
-// ===== Config =====
-const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI;
+// ===== Auth Routes =====
+app.use("/api", authRoutes); // mounts /api/signup and /api/login
 
-if (!MONGO_URI) {
-  console.error("❌ Missing MONGO_URI in .env file");
-  process.exit(1);
-}
+// ===== Event Routes =====
 
-// ===== API ROUTES =====
-
-// Get all users (hide raw passwords)
+// Get all users (hide passwords)
 app.get("/api/users", async (_req, res) => {
   try {
     const users = await User.find().select("-password");
@@ -63,7 +60,7 @@ app.get("/api/users", async (_req, res) => {
   }
 });
 
-// Get all events (populate creator info)
+// Get all events
 app.get("/api/events", async (_req, res) => {
   try {
     const events = await Event.find().populate("createdBy", "username email");
@@ -74,7 +71,7 @@ app.get("/api/events", async (_req, res) => {
   }
 });
 
-// Get single event by ID
+// Get single event
 app.get("/api/events/:id", async (req, res) => {
   try {
     const event = await Event.findById(req.params.id).populate(
@@ -106,9 +103,8 @@ app.get("/api/rsvps", async (_req, res) => {
 app.post("/api/rsvps", async (req, res) => {
   try {
     const { eventId, userId, status } = req.body;
-    if (!eventId || !userId) {
+    if (!eventId || !userId)
       return res.status(400).json({ error: "eventId and userId are required" });
-    }
 
     const rsvp = new Rsvp({
       event: eventId,
@@ -117,25 +113,29 @@ app.post("/api/rsvps", async (req, res) => {
     });
 
     await rsvp.save();
-    const populatedRsvp = await rsvp
+    const populated = await rsvp
       .populate("event", "title date location")
       .populate("user", "username email");
 
-    res.status(201).json(populatedRsvp);
+    res.status(201).json(populated);
   } catch (err) {
-    if (err.code === 11000) {
+    if (err.code === 11000)
       return res
         .status(400)
         .json({ error: "RSVP already exists for this event and user" });
-    }
     console.error(err);
     res.status(500).json({ error: "Failed to create RSVP" });
   }
 });
 
-// NOTE: No SPA fallback routes here because React is on Vercel.
-// If you ever want to serve the client from Render, add a regex fallback like:
-// app.get(/^\/(?!api).*/, (_req, res) => { ... });
+/* ==================== START SERVER ==================== */
+const PORT = process.env.PORT || 5050;
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+  console.error("❌ Missing MONGO_URI in .env file");
+  process.exit(1);
+}
 
 mongoose
   .connect(MONGO_URI, { dbName: "mymusiccity" })
