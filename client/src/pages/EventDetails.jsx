@@ -67,19 +67,51 @@ export default function EventDetails() {
         <button
           className="rsvp-btn"
           onClick={async () => {
-            if (!user || !user.id) {
+            // Ensure we have a user object with an id (either id or _id)
+            const userIdRaw = user?.id || user?._id;
+            if (!user || !userIdRaw) {
               alert("Please log in to RSVP.");
               navigate("/login");
               return;
             }
+
+            // Normalize event id and user id to strings that look like ObjectId
+            const getIdStr = (v) => {
+              if (!v) return null;
+              if (typeof v === "string") return v;
+              if (v && typeof v === "object") {
+                // Mongoose sometimes returns {_id: { $oid: '...' }} in some serializers
+                if (v.$oid) return v.$oid;
+                if (v.toString) return v.toString();
+              }
+              return String(v);
+            };
+
+            const eventIdStr = getIdStr(event._id || event.id);
+            const userIdStr = getIdStr(userIdRaw);
+
+            // Basic ObjectId sanity: 24 hex characters
+            const isLikelyObjectId = (s) => typeof s === "string" && /^[a-fA-F0-9]{24}$/.test(s);
+
+            if (!isLikelyObjectId(eventIdStr)) {
+              alert("This event cannot be RSVPed to (not a server-backed event).");
+              return;
+            }
+            if (!isLikelyObjectId(userIdStr)) {
+              alert("Your account id looks invalid for RSVP. Please re-login and try again.");
+              return;
+            }
+
             try {
-              const payload = await postRsvp(event._id || event.id, user.id);
+              console.log("Posting RSVP", { eventId: eventIdStr, userId: userIdStr });
+              const payload = await postRsvp(eventIdStr, userIdStr);
               // server returns populated RSVP; show simple confirmation
               alert("RSVP successful!");
               console.log("RSVP created:", payload);
             } catch (err) {
               console.error("RSVP error:", err);
-              alert(err.message || "Failed to RSVP");
+              // api throws Error with server message when available
+              alert(err.message || JSON.stringify(err) || "Failed to RSVP");
             }
           }}
         >
