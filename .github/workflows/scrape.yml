@@ -1,0 +1,30 @@
+name: Scheduled Scrape (every-other-night)
+
+on:
+  schedule:
+    # Runs every 2 days at 03:00 UTC. Adjust as needed for your timezone.
+    - cron: '0 3 */2 * *'
+  workflow_dispatch: {}
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run scrapers
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          # Optional: enable debug output by setting DEBUG_SCRAPE = '1' in repository secrets (not recommended for production)
+          DEBUG_SCRAPE: '0'
+        run: |
+          npm run scrape:all

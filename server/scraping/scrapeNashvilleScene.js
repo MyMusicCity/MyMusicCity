@@ -68,6 +68,16 @@ async function scrapeDo615() {
     }
 
     // Normalize and prepare data
+    function normalizeTitle(s) {
+      if (!s) return null;
+      return s
+        .toString()
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .replace(/[\W_]+/g, " ")
+        .trim();
+    }
+
     const formattedEvents = events.map((e) => {
       let parsedDate = null;
       try {
@@ -80,6 +90,7 @@ async function scrapeDo615() {
 
       return {
         title: e.title,
+        normalizedTitle: normalizeTitle(e.title),
         description: "Scraped from Do615 (Nashville Scene network)",
         date: parsedDate,
         location: e.location,
@@ -90,18 +101,35 @@ async function scrapeDo615() {
       };
     });
 
-    // Avoid duplicates
+    // Avoid duplicates (check by title OR url)
     const titles = formattedEvents.map((e) => e.title);
-    const existing = await Event.find({ title: { $in: titles } }).select("title");
+    const urls = formattedEvents.map((e) => e.url).filter(Boolean);
+    const queryOr = [];
+    if (titles.length) queryOr.push({ title: { $in: titles } });
+    if (urls.length) queryOr.push({ url: { $in: urls } });
+    const existing = queryOr.length ? await Event.find({ $or: queryOr }).select("title url") : [];
     const existingTitles = new Set(existing.map((e) => e.title));
+    const existingUrls = new Set(existing.map((e) => e.url).filter(Boolean));
 
-    const newEvents = formattedEvents.filter((e) => !existingTitles.has(e.title));
+    const newEvents = formattedEvents.filter((e) => {
+      if (existingUrls.has(e.url)) return false;
+      if (existingTitles.has(e.title)) return false;
+      return true;
+    });
 
     if (newEvents.length === 0) {
       console.log("No new events to add (all already exist)");
     } else {
-      await Event.insertMany(newEvents);
-      console.log(`Added ${newEvents.length} new events to the database`);
+      try {
+        await Event.insertMany(newEvents, { ordered: false });
+        console.log(`Added ${newEvents.length} new events to the database`);
+      } catch (dbErr) {
+        if (dbErr && dbErr.code === 11000) {
+          console.warn("Some events were skipped due to duplicate keys (unique index)");
+        } else {
+          console.error("Failed to insert DO615 events:", dbErr && dbErr.message ? dbErr.message : dbErr);
+        }
+      }
     }
   } catch (err) {
     console.error("Scrape failed:", err.message);

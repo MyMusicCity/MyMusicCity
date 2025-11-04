@@ -13,6 +13,24 @@ const EventSchema = new mongoose.Schema({
     type: Date, 
     required: true 
   },
+  url: {
+    type: String,
+    required: false,
+    default: null,
+    trim: true,
+  },
+  image: {
+    type: String,
+    required: false,
+    default: null,
+    trim: true,
+  },
+  normalizedTitle: {
+    type: String,
+    required: false,
+    default: null,
+    index: true,
+  },
   location: { 
     type: String 
   },
@@ -31,5 +49,8 @@ const EventSchema = new mongoose.Schema({
     default: Date.now 
   }
 });
+// Compound index to avoid duplicate inserts when source provides a canonical URL.
+// Sparse so it doesn't block events without URLs.
+EventSchema.index({ source: 1, url: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model("Event", EventSchema);
