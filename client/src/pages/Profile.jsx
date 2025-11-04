@@ -1,13 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { FaPen } from "react-icons/fa";
 import "../styles.css";
 
 export default function Profile() {
+  const navigate = useNavigate();
+
   const [profile, setProfile] = useState({
-    name: "Emma Chang",
+    name: "",
     year: "Senior",
     major: "Imaginary Numbers",
-    email: "emma.j.chang@vanderbilt.edu",
+    email: "",
     bio: "laufey for life",
     memberSince: "October 1, 2023",
   });
@@ -18,6 +21,22 @@ export default function Profile() {
     major: false,
     email: false,
   });
+
+  // ✅ Load user info from localStorage
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      const user = JSON.parse(storedUser);
+      setProfile((prev) => ({
+        ...prev,
+        name: user.username || "Unnamed User",
+        email: user.email || "No email provided",
+      }));
+    } else {
+      // If not logged in, redirect to login page
+      navigate("/login");
+    }
+  }, [navigate]);
 
   const handleEdit = (field) => {
     setEditing({ ...editing, [field]: !editing[field] });
@@ -31,10 +50,20 @@ export default function Profile() {
     if (e.key === "Enter") handleEdit(field);
   };
 
+  // ✅ Log out function
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/login");
+  };
+
+  // Compute avatar letter dynamically
+  const avatarLetter = profile.name ? profile.name[0].toUpperCase() : "?";
+
   return (
     <div className="profile-page">
       <div className="profile-card">
-        <div className="profile-avatar">E</div>
+        <div className="profile-avatar">{avatarLetter}</div>
         <h2 className="profile-name">{profile.name}</h2>
         <p className="profile-date">Member since: {profile.memberSince}</p>
 
@@ -126,6 +155,11 @@ export default function Profile() {
         </div>
 
         <button className="deactivate-btn">Deactivate account</button>
+
+        {/* ✅ New logout button */}
+        <button className="logout-btn" onClick={handleLogout}>
+          Log out
+        </button>
       </div>
     </div>
   );
