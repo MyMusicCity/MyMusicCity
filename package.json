@@ -8,7 +8,8 @@
     "dev": "nodemon server/index.js",
     "seed": "node seed.js",
     "scrape": "node server/scraping/scrapeNashvilleScene.js",
-    "scrape:all": "node server/scraping/scrapeAll.js"
+    "scrape:all": "node server/scraping/scrapeAll.js",
+    "test": "jest"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +25,8 @@
     "puppeteer": "^24.25.0"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0",
     "nodemon": "^3.1.10"
   }
 }
