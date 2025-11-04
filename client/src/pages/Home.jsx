@@ -5,7 +5,7 @@ import { FiSearch } from "react-icons/fi";
 import { Link } from "react-router-dom";
 import EventCard from "../components/EventCard";
 import LoadingSpinner from "../components/LoadingSpinner";
-import { ping } from "../api"; // <-- silent API connectivity check (no UI impact)
+import { ping, getEvents } from "../api"; // <-- silent API connectivity check and events
 
 // NOTE: Keep using your existing mock items so the UI stays identical.
 // If you already import mock data from a file, you can replace MOCK_EVENTS below
@@ -52,13 +52,38 @@ export default function Home() {
       // ignore errors — UI remains exactly the same
     });
 
-    // --- Keep your existing behavior: render mock items after a short delay ---
-    const timer = setTimeout(() => {
-      setEvents(MOCK_EVENTS);
-      setLoading(false);
-    }, 600);
+    // Try to load real events from the API. If that fails, fall back to mocks.
+    let mounted = true;
 
-    return () => clearTimeout(timer);
+    (async () => {
+      try {
+        const apiEvents = await getEvents();
+        if (mounted && apiEvents && apiEvents.length) {
+          setEvents(
+            apiEvents.map((ev) => ({
+              // keep server shape but the UI EventCard handles _id or id
+              ...ev,
+            }))
+          );
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        // ignore and fall back to mock events below
+      }
+
+      const timer = setTimeout(() => {
+        if (!mounted) return;
+        setEvents(MOCK_EVENTS);
+        setLoading(false);
+      }, 600);
+
+      // cleanup for the timeout
+      return () => {
+        mounted = false;
+        clearTimeout(timer);
+      };
+    })();
   }, []);
 
   if (loading) return <LoadingSpinner />;
@@ -105,13 +130,7 @@ export default function Home() {
 
         <div className="grid">
           {events.map((e) => (
-            <Link
-              key={e.id}
-              to={`/event/${e.id}`}
-              style={{ textDecoration: "none", color: "inherit" }}
-            >
-              <EventCard event={e} />
-            </Link>
+            <EventCard key={e._id || e.id} event={e} />
           ))}
         </div>
       </section>
