@@ -105,6 +105,20 @@ app.post("/api/rsvps", async (req, res) => {
     const { eventId, userId, status } = req.body;
     if (!eventId || !userId)
       return res.status(400).json({ error: "eventId and userId are required" });
+    // Validate IDs
+    const mongoose = require("mongoose");
+    if (!mongoose.Types.ObjectId.isValid(eventId))
+      return res.status(400).json({ error: "Invalid eventId" });
+    if (!mongoose.Types.ObjectId.isValid(userId))
+      return res.status(400).json({ error: "Invalid userId" });
+
+    // Ensure event and user exist to provide clearer errors instead of a 500
+    const [foundEvent, foundUser] = await Promise.all([
+      Event.findById(eventId).select("_id title"),
+      User.findById(userId).select("_id username email"),
+    ]);
+    if (!foundEvent) return res.status(404).json({ error: "Event not found" });
+    if (!foundUser) return res.status(404).json({ error: "User not found" });
 
     const rsvp = new Rsvp({
       event: eventId,
@@ -123,7 +137,7 @@ app.post("/api/rsvps", async (req, res) => {
       return res
         .status(400)
         .json({ error: "RSVP already exists for this event and user" });
-    console.error(err);
+    console.error("RSVP create error:", err && err.stack ? err.stack : err);
     res.status(500).json({ error: "Failed to create RSVP" });
   }
 });
