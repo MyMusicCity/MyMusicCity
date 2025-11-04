@@ -1,5 +1,10 @@
 // client/src/api.js
-const API_BASE = (process.env.REACT_APP_API_URL || "").replace(/\/$/, "");
+// If REACT_APP_API_URL was not provided at build time, fall back at runtime to
+// the current origin. This keeps the UI identical while allowing same-origin
+// deployments without a build-time env var.
+const API_BASE = (
+  process.env.REACT_APP_API_URL || (typeof window !== "undefined" && window.location && window.location.origin) || ""
+).replace(/\/$/, "");
 
 // --- Safe health check (won't break UI) ---
 export async function ping() {

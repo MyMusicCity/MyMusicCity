@@ -44,6 +44,14 @@ app.use(express.json());
 app.get("/healthz", (_req, res) => res.status(200).json({ ok: true }));
 app.get("/", (_req, res) => res.send("Hello from MyMusicCity backend!"));
 
+// Readiness endpoint - useful for platform readiness checks. Returns 200 when
+// the DB connection is ready. Returns 503 when not ready.
+app.get("/ready", (_req, res) => {
+  const state = mongoose.connection.readyState; // 1 = connected
+  if (state === 1) return res.status(200).json({ ready: true });
+  return res.status(503).json({ ready: false, state });
+});
+
 // ===== Auth Routes =====
 app.use("/api", authRoutes); // mounts /api/signup and /api/login
 

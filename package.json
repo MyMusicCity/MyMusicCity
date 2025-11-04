@@ -9,7 +9,8 @@
     "seed": "node seed.js",
     "scrape": "node server/scraping/scrapeNashvilleScene.js",
     "scrape:all": "node server/scraping/scrapeAll.js",
-    "test": "jest"
+    "test": "jest",
+    "smoke": "node scripts/smoke.js"
   },
   "keywords": [],
   "author": "",
