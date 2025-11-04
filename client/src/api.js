@@ -41,8 +41,16 @@ export async function postRsvp(eventId, userId, status = "going") {
     credentials: "include",
     body: JSON.stringify({ eventId, userId, status }),
   });
-  if (!res.ok) throw new Error(`RSVP failed: ${res.status}`);
-  return res.json();
+  // Parse JSON and surface server-provided error messages when present
+  let payload;
+  try {
+    payload = await res.json();
+  } catch (e) {
+    if (!res.ok) throw new Error(`RSVP failed: status ${res.status}`);
+    return {};
+  }
+  if (!res.ok) throw new Error(payload?.error || payload?.message || `RSVP failed: ${res.status}`);
+  return payload;
 }
 
 export async function getUserRsvps(userId) {

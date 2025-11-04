@@ -71,7 +71,13 @@ app.get("/api/users", async (_req, res) => {
 // Get all events
 app.get("/api/events", async (_req, res) => {
   try {
-    const events = await Event.find().populate("createdBy", "username email");
+    // Use lean() to return plain objects and avoid mongoose document serialization issues
+    let events = await Event.find().populate("createdBy", "username email").lean().exec();
+    // Normalize date to ISO string to avoid client-side parsing surprises
+    events = events.map((ev) => ({
+      ...ev,
+      date: ev.date ? new Date(ev.date).toISOString() : null,
+    }));
     res.json(events);
   } catch (err) {
     console.error(err);
@@ -82,11 +88,12 @@ app.get("/api/events", async (_req, res) => {
 // Get single event
 app.get("/api/events/:id", async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id).populate(
-      "createdBy",
-      "username email"
-    );
+    if (!require("mongoose").Types.ObjectId.isValid(req.params.id))
+      return res.status(400).json({ error: "Invalid event id" });
+
+    let event = await Event.findById(req.params.id).populate("createdBy", "username email").lean().exec();
     if (!event) return res.status(404).json({ error: "Event not found" });
+    event = { ...event, date: event.date ? new Date(event.date).toISOString() : null };
     res.json(event);
   } catch (err) {
     console.error(err);
