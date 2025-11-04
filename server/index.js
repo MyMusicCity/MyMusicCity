@@ -142,11 +142,15 @@ app.post("/api/rsvps", async (req, res) => {
     });
 
     await rsvp.save();
-    const populated = await rsvp
-      .populate("event", "title date location")
-      .populate("user", "username email");
 
-    res.status(201).json(populated);
+    // In some environments calling .populate chained directly can attempt to
+    // call populate on a Promise (which doesn't have that method). Call
+    // populate with await in two steps to ensure we're operating on the
+    // Mongoose Document, not a Promise.
+    await rsvp.populate("event", "title date location");
+    await rsvp.populate("user", "username email");
+
+    res.status(201).json(rsvp);
   } catch (err) {
     if (err.code === 11000)
       return res
