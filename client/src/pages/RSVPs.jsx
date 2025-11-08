@@ -10,13 +10,15 @@ export default function RSVPs() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!user || !user._id) return;
+    // Auth routes return user.id (not _id). Accept either form.
+    const userId = user ? (user.id || user._id) : null;
+    if (!userId) return;
     setLoading(true);
-    getUserRsvps(user._id)
+    getUserRsvps(userId)
       .then((data) => setRsvps(data || []))
       .catch((err) => setError(err.message || "Failed to load RSVPs"))
       .finally(() => setLoading(false));
-  }, [user && user._id]);
+  }, [user && (user.id || user._id)]);
 
   if (!user) {
     return (
