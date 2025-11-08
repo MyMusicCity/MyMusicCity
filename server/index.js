@@ -114,6 +114,36 @@ app.get("/api/rsvps", async (_req, res) => {
   }
 });
 
+// Get RSVPs for a specific user
+app.get("/api/rsvps/user/:userId", async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const mongoose = require("mongoose");
+    if (!mongoose.Types.ObjectId.isValid(userId))
+      return res.status(400).json({ error: "Invalid user id" });
+
+    // Find RSVPs for the user and populate the event and user fields.
+    // We return the RSVPs (with populated event) so the client can show the
+    // events the user has RSVP'd to.
+    let rsvps = await Rsvp.find({ user: userId })
+      .populate("event", "title date location")
+      .populate("user", "username email");
+
+    // Normalize event.date to ISO string on the returned rsvp objects so the
+    // client doesn't need to parse Date objects.
+    rsvps = rsvps.map((r) => {
+      const obj = r.toObject ? r.toObject() : r;
+      if (obj.event && obj.event.date) obj.event.date = new Date(obj.event.date).toISOString();
+      return obj;
+    });
+
+    res.json(rsvps);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch user RSVPs" });
+  }
+});
+
 // Create a new RSVP
 app.post("/api/rsvps", async (req, res) => {
   try {
