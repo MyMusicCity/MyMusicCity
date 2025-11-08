@@ -8,10 +8,15 @@ import { AuthContext } from "../AuthContext";
 export default function Login() {
   const navigate = useNavigate();
   const [isSignup, setIsSignup] = useState(false);
-  const [form, setForm] = useState({ username: "", email: "", password: "" });
+  const [form, setForm] = useState({
+    username: "",
+    email: "",
+    password: "",
+    year: "",
+    major: "",
+  });
   const [error, setError] = useState("");
-  const { setToken } = useContext(AuthContext);
-  const { setUser } = useContext(AuthContext);
+  const { setToken, setUser } = useContext(AuthContext);
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) =>
@@ -22,21 +27,26 @@ export default function Login() {
     setLoading(true);
     try {
       const res = isSignup
-        ? await signupUser(form.username, form.email, form.password)
+        ? await signupUser(
+            form.username,
+            form.email,
+            form.password,
+            form.year,
+            form.major
+          )
         : await loginUser(form.email, form.password);
 
-      // ✅ Store token and user info
+      // ✅ Save to localStorage + context
       if (res?.token) {
-        // persist
         localStorage.setItem("token", res.token);
-        setToken(res.token); // update context so App re-renders
+        setToken(res.token);
       }
       if (res?.user) {
         localStorage.setItem("user", JSON.stringify(res.user));
         setUser(res.user);
       }
 
-      // ✅ Redirect to home page after success
+      // ✅ Redirect after login/signup success
       navigate("/", { replace: true });
     } catch (err) {
       console.error("Login/signup error:", err);
@@ -52,15 +62,34 @@ export default function Login() {
         <h2>{isSignup ? "Create Account" : "Log In"}</h2>
         <form onSubmit={handleSubmit}>
           {isSignup && (
-            <input
-              type="text"
-              name="username"
-              placeholder="Username"
-              value={form.username}
-              onChange={handleChange}
-              required
-            />
+            <>
+              <input
+                type="text"
+                name="username"
+                placeholder="Username"
+                value={form.username}
+                onChange={handleChange}
+                required
+              />
+              <input
+                type="text"
+                name="year"
+                placeholder="Year (e.g. Senior)"
+                value={form.year}
+                onChange={handleChange}
+                required
+              />
+              <input
+                type="text"
+                name="major"
+                placeholder="Major (e.g. Computer Science)"
+                value={form.major}
+                onChange={handleChange}
+                required
+              />
+            </>
           )}
+
           <input
             type="email"
             name="email"
@@ -77,9 +106,20 @@ export default function Login() {
             onChange={handleChange}
             required
           />
+
           {error && <p className="error">{error}</p>}
-          <button type="submit" disabled={loading}>{loading ? (isSignup ? "Signing up..." : "Logging in...") : (isSignup ? "Sign Up" : "Log In")}</button>
+
+          <button type="submit" disabled={loading}>
+            {loading
+              ? isSignup
+                ? "Signing up..."
+                : "Logging in..."
+              : isSignup
+              ? "Sign Up"
+              : "Log In"}
+          </button>
         </form>
+
         <p>
           {isSignup ? "Already have an account?" : "Don’t have an account?"}{" "}
           <span

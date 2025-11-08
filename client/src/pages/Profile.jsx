@@ -8,11 +8,11 @@ export default function Profile() {
 
   const [profile, setProfile] = useState({
     name: "",
-    year: "Senior",
-    major: "Imaginary Numbers",
+    year: "",
+    major: "",
     email: "",
     bio: "laufey for life",
-    memberSince: "October 1, 2023",
+    memberSince: "",
   });
 
   const [editing, setEditing] = useState({
@@ -22,7 +22,7 @@ export default function Profile() {
     email: false,
   });
 
-  // ✅ Load user info from localStorage
+  // ✅ Load actual user info from localStorage
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
@@ -30,10 +30,14 @@ export default function Profile() {
       setProfile((prev) => ({
         ...prev,
         name: user.username || "Unnamed User",
-        email: user.email || "No email provided",
+        email: user.email || "",
+        year: user.year || "Unknown",
+        major: user.major || "Unknown",
+        memberSince: user.createdAt
+          ? new Date(user.createdAt).toLocaleDateString()
+          : "Recently Joined",
       }));
     } else {
-      // If not logged in, redirect to login page
       navigate("/login");
     }
   }, [navigate]);
@@ -50,14 +54,12 @@ export default function Profile() {
     if (e.key === "Enter") handleEdit(field);
   };
 
-  // ✅ Log out function
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/login");
   };
 
-  // Compute avatar letter dynamically
   const avatarLetter = profile.name ? profile.name[0].toUpperCase() : "?";
 
   return (
@@ -155,8 +157,6 @@ export default function Profile() {
         </div>
 
         <button className="deactivate-btn">Deactivate account</button>
-
-        {/* ✅ New logout button */}
         <button className="logout-btn" onClick={handleLogout}>
           Log out
         </button>

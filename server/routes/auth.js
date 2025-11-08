@@ -9,7 +9,7 @@ const router = express.Router();
 // --- SIGNUP ---
 router.post("/signup", async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, year, major } = req.body;
 
     if (!username || !email || !password)
       return res.status(400).json({ error: "All fields are required." });
@@ -20,10 +20,15 @@ router.post("/signup", async (req, res) => {
 
     const hashed = await bcrypt.hash(password, 10);
 
-    const newUser = new User({ username, email, password: hashed });
+    const newUser = new User({
+      username,
+      email,
+      password: hashed,
+      year,
+      major,
+    });
     await newUser.save();
 
-    // generate token just like login
     const token = jwt.sign(
       { id: newUser._id, email: newUser.email },
       process.env.JWT_SECRET || "supersecretjwtkey",
@@ -37,6 +42,8 @@ router.post("/signup", async (req, res) => {
         id: newUser._id,
         username: newUser.username,
         email: newUser.email,
+        year: newUser.year,
+        major: newUser.major,
       },
     });
   } catch (err) {
@@ -44,7 +51,6 @@ router.post("/signup", async (req, res) => {
     res.status(500).json({ error: "Signup failed." });
   }
 });
-
 
 // --- LOGIN ---
 router.post("/login", async (req, res) => {
@@ -70,6 +76,8 @@ router.post("/login", async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
+        year: user.year,
+        major: user.major,
       },
     });
   } catch (err) {
