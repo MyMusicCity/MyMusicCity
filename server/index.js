@@ -144,6 +144,47 @@ app.get("/api/rsvps/user/:userId", async (req, res) => {
   }
 });
 
+// Get RSVPs for a specific event (return attendees)
+app.get("/api/rsvps/event/:eventId", async (req, res) => {
+  try {
+    const eventId = req.params.eventId;
+    const mongoose = require("mongoose");
+    if (!mongoose.Types.ObjectId.isValid(eventId))
+      return res.status(400).json({ error: "Invalid event id" });
+
+    let rsvps = await Rsvp.find({ event: eventId })
+      .populate("user", "username email")
+      .populate("event", "title date location");
+
+    // Normalize dates
+    rsvps = rsvps.map((r) => {
+      const obj = r.toObject ? r.toObject() : r;
+      if (obj.event && obj.event.date) obj.event.date = new Date(obj.event.date).toISOString();
+      return obj;
+    });
+
+    res.json(rsvps);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch event RSVPs" });
+  }
+});
+
+// Get single user by id (hide password)
+app.get("/api/users/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const mongoose = require("mongoose");
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid user id" });
+    const user = await User.findById(id).select("-password").lean().exec();
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch user" });
+  }
+});
+
 // Create a new RSVP
 app.post("/api/rsvps", async (req, res) => {
   try {
