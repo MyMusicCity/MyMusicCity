@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useContext } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, Link } from "react-router-dom";
 import "../styles.css";
-import { getEventById, postRsvp } from "../api";
+import { getEventById, postRsvp, getEventRsvps } from "../api";
 import { AuthContext } from "../AuthContext";
 
 export default function EventDetails() {
@@ -13,6 +13,7 @@ export default function EventDetails() {
   const [loading, setLoading] = useState(!state?.event);
   const [error, setError] = useState("");
   const { user } = useContext(AuthContext);
+  const [attendees, setAttendees] = useState([]);
 
   useEffect(() => {
     let mounted = true;
@@ -35,6 +36,22 @@ export default function EventDetails() {
     }
     return () => (mounted = false);
   }, [id]);
+
+  // Fetch attendees for this event
+  useEffect(() => {
+    let mounted = true;
+    const evId = event?._id || event?.id || id;
+    if (!evId) return;
+    (async () => {
+      try {
+        const list = await getEventRsvps(evId);
+        if (mounted) setAttendees(list || []);
+      } catch (err) {
+        console.error("Failed to load attendees", err);
+      }
+    })();
+    return () => (mounted = false);
+  }, [event && (event._id || event.id), id]);
 
   if (loading) return <div style={{ padding: "2rem" }}>Loading...</div>;
 
@@ -61,6 +78,25 @@ export default function EventDetails() {
         <h1>{event.title}</h1>
         <p className="event-date">{event.date}</p>
         <p className="event-location">📍 {event.location}</p>
+        <div className="attendees">
+          <h3>Attendees</h3>
+          {attendees.length > 0 ? (
+            <div className="attendee-list">
+              {attendees.map((r) => {
+                const u = r.user || {};
+                const uid = u._id || u.id;
+                return (
+                  <Link key={uid || Math.random()} to={`/profile/${uid}`} className="attendee-link">
+                    <div className="attendee-avatar">{u.username ? u.username[0].toUpperCase() : "?"}</div>
+                    <div className="attendee-name">{u.username || "Unknown"}</div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <p>No attendees yet.</p>
+          )}
+        </div>
         <p className="event-description">
           {`Join us for ${event.title}, featuring incredible music and a vibrant Nashville crowd!`}
         </p>

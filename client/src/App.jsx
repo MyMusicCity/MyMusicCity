@@ -5,6 +5,7 @@ import Home from "./pages/Home";
 import EventDetails from "./pages/EventDetails";
 import Messages from "./pages/Messages";
 import Profile from "./pages/Profile";
+import ProfileView from "./pages/ProfileView";
 import RSVPs from "./pages/RSVPs";
 import Login from "./pages/Login"; 
 import { AuthContext } from "./AuthContext";
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/messages" element={token ? <Messages /> : <Navigate to="/login" />} />
           <Route path="/rsvps" element={token ? <RSVPs /> : <Navigate to="/login" />} />
           <Route path="/profile" element={token ? <Profile /> : <Navigate to="/login" />} />
+          <Route path="/profile/:id" element={token ? <ProfileView /> : <Navigate to="/login" />} />
 
           {/* Catch-all redirect */}
           <Route path="*" element={<Navigate to="/" />} />

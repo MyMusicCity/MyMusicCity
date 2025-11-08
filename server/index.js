@@ -114,6 +114,77 @@ app.get("/api/rsvps", async (_req, res) => {
   }
 });
 
+// Get RSVPs for a specific user
+app.get("/api/rsvps/user/:userId", async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const mongoose = require("mongoose");
+    if (!mongoose.Types.ObjectId.isValid(userId))
+      return res.status(400).json({ error: "Invalid user id" });
+
+    // Find RSVPs for the user and populate the event and user fields.
+    // We return the RSVPs (with populated event) so the client can show the
+    // events the user has RSVP'd to.
+    let rsvps = await Rsvp.find({ user: userId })
+      .populate("event", "title date location")
+      .populate("user", "username email");
+
+    // Normalize event.date to ISO string on the returned rsvp objects so the
+    // client doesn't need to parse Date objects.
+    rsvps = rsvps.map((r) => {
+      const obj = r.toObject ? r.toObject() : r;
+      if (obj.event && obj.event.date) obj.event.date = new Date(obj.event.date).toISOString();
+      return obj;
+    });
+
+    res.json(rsvps);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch user RSVPs" });
+  }
+});
+
+// Get RSVPs for a specific event (return attendees)
+app.get("/api/rsvps/event/:eventId", async (req, res) => {
+  try {
+    const eventId = req.params.eventId;
+    const mongoose = require("mongoose");
+    if (!mongoose.Types.ObjectId.isValid(eventId))
+      return res.status(400).json({ error: "Invalid event id" });
+
+    let rsvps = await Rsvp.find({ event: eventId })
+      .populate("user", "username email")
+      .populate("event", "title date location");
+
+    // Normalize dates
+    rsvps = rsvps.map((r) => {
+      const obj = r.toObject ? r.toObject() : r;
+      if (obj.event && obj.event.date) obj.event.date = new Date(obj.event.date).toISOString();
+      return obj;
+    });
+
+    res.json(rsvps);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch event RSVPs" });
+  }
+});
+
+// Get single user by id (hide password)
+app.get("/api/users/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const mongoose = require("mongoose");
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid user id" });
+    const user = await User.findById(id).select("-password").lean().exec();
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch user" });
+  }
+});
+
 // Create a new RSVP
 app.post("/api/rsvps", async (req, res) => {
   try {
