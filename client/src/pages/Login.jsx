@@ -35,6 +35,7 @@ export default function Login() {
       if (res?.user) {
         localStorage.setItem("user", JSON.stringify(res.user));
         setUser(res.user);
+        localStorage.setItem("justLoggedIn", "true");
       }
 
       navigate("/", { replace: true });

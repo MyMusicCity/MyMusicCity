@@ -1,12 +1,11 @@
-// client/src/pages/Home.jsx
 import React, { useEffect, useState } from "react";
 import "../styles.css";
 import { FiSearch } from "react-icons/fi";
 import EventCard from "../components/EventCard";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { ping, getEvents } from "../api";
+import { Link } from "react-router-dom";
 
-// --- Mock events for fallback ---
 const MOCK_EVENTS = [
   {
     id: 1,
@@ -41,22 +40,28 @@ export default function Home() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState("Most Popular");
-  const [welcome, setWelcome] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [username, setUsername] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
-  // --- Welcome banner + username ---
+  // ✅ Only show banner if user just logged in
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       const user = JSON.parse(storedUser);
       setUsername(user.username || "friend");
-    }
 
-    const timer = setTimeout(() => setWelcome(false), 3000);
-    return () => clearTimeout(timer);
+      if (localStorage.getItem("justLoggedIn") === "true") {
+        setShowWelcome(true);
+        setTimeout(() => {
+          setShowWelcome(false);
+          localStorage.removeItem("justLoggedIn");
+        }, 3000);
+      }
+    }
   }, []);
 
-  // --- Load events (API or mock fallback) ---
+  // ✅ Load events (API or fallback)
   useEffect(() => {
     ping().catch(() => {});
     let mounted = true;
@@ -70,7 +75,7 @@ export default function Home() {
           return;
         }
       } catch (err) {
-        // fallback to mock events
+        // fallback
       }
 
       const timer = setTimeout(() => {
@@ -88,41 +93,43 @@ export default function Home() {
 
   if (loading) return <LoadingSpinner />;
 
+  // ✅ Search filter
+  const filteredEvents = events.filter((e) =>
+    e.title.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="home">
-      {/* ✅ Welcome message */}
-      {welcome && (
+      {/* ✅ Show banner only right after login */}
+      {showWelcome && (
         <div className="welcome-banner">
-          Welcome back, <strong>{username}</strong>!
+          Welcome back, <strong>{username}</strong> 👋
         </div>
       )}
 
-      {/* LEFT SIDEBAR FILTERS */}
+      {/* LEFT FILTER PANEL */}
       <aside className="filters">
         <h3>DATE</h3>
-        <input type="text" placeholder="mm/dd/yyyy" />
-        <input type="text" placeholder="mm/dd/yyyy" />
+        <input type="text" placeholder="Start Date" />
+        <input type="text" placeholder="End Date" />
         <h3>GENRES</h3>
-        <label>
-          <input type="checkbox" /> Pop
-        </label>
-        <label>
-          <input type="checkbox" /> Rap
-        </label>
-        <label>
-          <input type="checkbox" /> Country
-        </label>
-        <label>
-          <input type="checkbox" /> Jazz
-        </label>
+        <label><input type="checkbox" /> Pop</label>
+        <label><input type="checkbox" /> Rap</label>
+        <label><input type="checkbox" /> Country</label>
+        <label><input type="checkbox" /> Jazz</label>
       </aside>
 
-      {/* RESULTS COLUMN */}
+      {/* RESULTS SECTION */}
       <section className="results">
         <div className="search-row">
           <div className="search">
             <FiSearch />
-            <input type="text" placeholder="Search events" />
+            <input
+              type="text"
+              placeholder="Search events"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
           <div>
             <label>Sort By:&nbsp;</label>
@@ -133,20 +140,27 @@ export default function Home() {
           </div>
         </div>
 
-        <p style={{ margin: "8px 0 16px" }}>{events.length} Results found</p>
+        <p style={{ margin: "8px 0 16px" }}>
+          {filteredEvents.length} Results found
+        </p>
 
+        {/* ✅ Event Grid */}
         <div className="grid">
-          {(() => {
-            const list = [...events];
-            if (sortBy === "Soonest") {
-              list.sort((a, b) => new Date(a.date) - new Date(b.date));
-            } else {
-              list.sort((a, b) => new Date(b.date) - new Date(a.date));
-            }
-            return list.map((e) => (
-              <EventCard key={e._id || e.id} event={e} />
-            ));
-          })()}
+          {filteredEvents.map((e) => (
+            <Link
+              key={e._id || e.id}
+              to={`/event/${e._id || e.id}`}
+              state={{ event: e }}
+              className="event-card"
+            >
+              <img src={e.image} alt={e.title} className="event-img" />
+              <div className="event-info">
+                <h4>{e.title}</h4>
+                <p className="location">{e.location}</p>
+                <p className="date">{e.date}</p>
+              </div>
+            </Link>
+          ))}
         </div>
       </section>
     </div>
