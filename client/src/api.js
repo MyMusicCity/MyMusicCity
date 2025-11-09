@@ -74,14 +74,14 @@ export async function getUserById(id) {
   return res.json();
 }
 
-export async function signupUser(username, email, password) {
+export async function signupUser(username, email, password, year, major) {
   console.log("API_BASE is", API_BASE);
   const res = await fetch(`${API_BASE}/api/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, email, password }),
+    body: JSON.stringify({ username, email, password, year, major }),
   });
-  // parse response and surface server error messages when present
+
   let payload;
   try {
     payload = await res.json();
@@ -89,9 +89,11 @@ export async function signupUser(username, email, password) {
     if (!res.ok) throw new Error(`Signup failed: status ${res.status}`);
     return {};
   }
-  if (!res.ok) throw new Error(payload?.error || payload?.message || `Signup failed: ${res.status}`);
+  if (!res.ok)
+    throw new Error(payload?.error || payload?.message || `Signup failed: ${res.status}`);
   return payload;
 }
+
 
 
 export async function loginUser(email, password) {
