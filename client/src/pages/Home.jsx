@@ -2,14 +2,11 @@
 import React, { useEffect, useState } from "react";
 import "../styles.css";
 import { FiSearch } from "react-icons/fi";
-import { Link } from "react-router-dom";
 import EventCard from "../components/EventCard";
 import LoadingSpinner from "../components/LoadingSpinner";
-import { ping, getEvents } from "../api"; // <-- silent API connectivity check and events
+import { ping, getEvents } from "../api";
 
-// NOTE: Keep using your existing mock items so the UI stays identical.
-// If you already import mock data from a file, you can replace MOCK_EVENTS below
-// with your import and leave the rest unchanged.
+// --- Mock events for fallback ---
 const MOCK_EVENTS = [
   {
     id: 1,
@@ -44,33 +41,36 @@ export default function Home() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState("Most Popular");
+  const [welcome, setWelcome] = useState(true);
+  const [username, setUsername] = useState("");
 
+  // --- Welcome banner + username ---
   useEffect(() => {
-    // --- Silent connectivity check to your deployed API (no UI change) ---
-    // This will create a Fetch/XHR entry to <REACT_APP_API_URL>/healthz
-    // so you can verify linkage in DevTools without altering the page.
-    ping().catch(() => {
-      // ignore errors — UI remains exactly the same
-    });
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      const user = JSON.parse(storedUser);
+      setUsername(user.username || "friend");
+    }
 
-    // Try to load real events from the API. If that fails, fall back to mocks.
+    const timer = setTimeout(() => setWelcome(false), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // --- Load events (API or mock fallback) ---
+  useEffect(() => {
+    ping().catch(() => {});
     let mounted = true;
 
     (async () => {
       try {
         const apiEvents = await getEvents();
         if (mounted && apiEvents && apiEvents.length) {
-          setEvents(
-            apiEvents.map((ev) => ({
-              // keep server shape but the UI EventCard handles _id or id
-              ...ev,
-            }))
-          );
+          setEvents(apiEvents);
           setLoading(false);
           return;
         }
       } catch (err) {
-        // ignore and fall back to mock events below
+        // fallback to mock events
       }
 
       const timer = setTimeout(() => {
@@ -79,7 +79,6 @@ export default function Home() {
         setLoading(false);
       }, 600);
 
-      // cleanup for the timeout
       return () => {
         mounted = false;
         clearTimeout(timer);
@@ -91,7 +90,14 @@ export default function Home() {
 
   return (
     <div className="home">
-      {/* LEFT SIDEBAR FILTERS — unchanged */}
+      {/* ✅ Welcome message */}
+      {welcome && (
+        <div className="welcome-banner">
+          Welcome back, <strong>{username}</strong>!
+        </div>
+      )}
+
+      {/* LEFT SIDEBAR FILTERS */}
       <aside className="filters">
         <h3>DATE</h3>
         <input type="text" placeholder="mm/dd/yyyy" />
@@ -111,7 +117,7 @@ export default function Home() {
         </label>
       </aside>
 
-      {/* RESULTS COLUMN — unchanged */}
+      {/* RESULTS COLUMN */}
       <section className="results">
         <div className="search-row">
           <div className="search">
@@ -119,12 +125,12 @@ export default function Home() {
             <input type="text" placeholder="Search events" />
           </div>
           <div>
-              <label>Sort By:&nbsp;</label>
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                <option>Most Popular</option>
-                <option>Soonest</option>
-              </select>
-            </div>
+            <label>Sort By:&nbsp;</label>
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <option>Most Popular</option>
+              <option>Soonest</option>
+            </select>
+          </div>
         </div>
 
         <p style={{ margin: "8px 0 16px" }}>{events.length} Results found</p>
@@ -135,10 +141,11 @@ export default function Home() {
             if (sortBy === "Soonest") {
               list.sort((a, b) => new Date(a.date) - new Date(b.date));
             } else {
-              // Most Popular -> fall back to newest first (by date) when no attendee info
               list.sort((a, b) => new Date(b.date) - new Date(a.date));
             }
-            return list.map((e) => <EventCard key={e._id || e.id} event={e} />);
+            return list.map((e) => (
+              <EventCard key={e._id || e.id} event={e} />
+            ));
           })()}
         </div>
       </section>
