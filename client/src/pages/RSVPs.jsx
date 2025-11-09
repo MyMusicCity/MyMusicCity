@@ -2,6 +2,7 @@ import React, { useEffect, useState, useContext } from "react";
 import { getUserRsvps } from "../api";
 import EventCard from "../components/EventCard";
 import { AuthContext } from "../AuthContext";
+import "../styles.css";
 
 export default function RSVPs() {
   const { user } = useContext(AuthContext);
@@ -10,9 +11,9 @@ export default function RSVPs() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Auth routes return user.id (not _id). Accept either form.
-    const userId = user ? (user.id || user._id) : null;
+    const userId = user ? user.id || user._id : null;
     if (!userId) return;
+
     setLoading(true);
     getUserRsvps(userId)
       .then((data) => setRsvps(data || []))
@@ -32,18 +33,21 @@ export default function RSVPs() {
   return (
     <div className="rsvp-page">
       <h2>My RSVPs</h2>
+
       {loading ? (
         <p>Loading...</p>
       ) : error ? (
         <p className="error">{error}</p>
-      ) : (
-        <div className="event-grid">
-          {rsvps.length > 0 ? (
-            rsvps.map((r) => <EventCard key={r._id} event={r.event} />)
-          ) : (
-            <p>You haven’t RSVP’d to any events yet.</p>
-          )}
+      ) : rsvps.length > 0 ? (
+        <div className="grid">
+          {rsvps.map((r) => (
+            <div key={r._id || r.event?._id || Math.random()} className="rsvp-card-wrapper">
+              <EventCard event={r.event} />
+            </div>
+          ))}
         </div>
+      ) : (
+        <p>You haven’t RSVP’d to any events yet.</p>
       )}
     </div>
   );
