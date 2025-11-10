@@ -5,6 +5,13 @@ const User = require("../models/User");
 
 const router = express.Router();
 
+const ALLOWED_EMAIL_DOMAIN = (process.env.ALLOWED_EMAIL_DOMAIN || "vanderbilt.edu").toLowerCase();
+
+function emailAllowed(email) {
+  if (!email || typeof email !== "string") return false;
+  return email.toLowerCase().endsWith("@" + ALLOWED_EMAIL_DOMAIN);
+}
+
 // --- SIGNUP ---
 router.post("/signup", async (req, res) => {
   try {
@@ -12,6 +19,10 @@ router.post("/signup", async (req, res) => {
 
     if (!username || !email || !password)
       return res.status(400).json({ error: "All fields are required." });
+
+    // Enforce institutional email domain for signups
+    if (!emailAllowed(email))
+      return res.status(403).json({ error: `Signups are limited to ${ALLOWED_EMAIL_DOMAIN} email addresses.` });
 
     const existingUser = await User.findOne({ email });
     if (existingUser)
@@ -49,7 +60,10 @@ router.post("/signup", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-
+    // Only allow logins from the configured institutional domain
+    if (!emailAllowed(email))
+      return res.status(403).json({ error: `Login is restricted to ${ALLOWED_EMAIL_DOMAIN} email addresses.` });
+    
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ error: "Invalid credentials." });
 
