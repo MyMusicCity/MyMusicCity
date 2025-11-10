@@ -12,6 +12,8 @@ const Rsvp = require("./models/Rsvp");
 
 // Import routes
 const authRoutes = require("./routes/auth");
+const auth = require("./middleware/auth");
+const { body, param, validationResult } = require("express-validator");
 
 const app = express();
 
@@ -196,55 +198,85 @@ app.get("/api/users/:id", async (req, res) => {
   }
 });
 
-// Create a new RSVP
-app.post("/api/rsvps", async (req, res) => {
+// Return current user info (requires auth)
+app.get("/api/me", auth, async (req, res) => {
   try {
-    const { eventId, userId, status } = req.body;
-    if (!eventId || !userId)
-      return res.status(400).json({ error: "eventId and userId are required" });
-    // Validate IDs
-    const mongoose = require("mongoose");
-    if (!mongoose.Types.ObjectId.isValid(eventId))
-      return res.status(400).json({ error: "Invalid eventId" });
-    if (!mongoose.Types.ObjectId.isValid(userId))
-      return res.status(400).json({ error: "Invalid userId" });
-
-    // Ensure event and user exist to provide clearer errors instead of a 500
-    const [foundEvent, foundUser] = await Promise.all([
-      Event.findById(eventId).select("_id title"),
-      User.findById(userId).select("_id username email"),
-    ]);
-    if (!foundEvent) return res.status(404).json({ error: "Event not found" });
-    if (!foundUser) return res.status(404).json({ error: "User not found" });
-
-    const rsvp = new Rsvp({
-      event: eventId,
-      user: userId,
-      status: status || "interested",
-    });
-
-    await rsvp.save();
-
-    // In some environments calling .populate chained directly can attempt to
-    // call populate on a Promise (which doesn't have that method). Call
-    // populate with await in two steps to ensure we're operating on the
-    // Mongoose Document, not a Promise.
-    await rsvp.populate("event", "title date location");
-    await rsvp.populate("user", "username email");
-
-    res.status(201).json(rsvp);
+    const id = req.user && req.user.id;
+    if (!id) return res.status(401).json({ error: "Unauthorized" });
+    const user = await User.findById(id).select("-password").lean().exec();
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(user);
   } catch (err) {
-    if (err.code === 11000)
-      return res
-        .status(400)
-        .json({ error: "RSVP already exists for this event and user" });
-    console.error("RSVP create error:", err && err.stack ? err.stack : err);
-    // Surface the error message to make client debugging easier while still
-    // returning a 500 status. This is safe for now because messages are generic
-    // (if you want to avoid leaking info in production, return a generic message).
-    res.status(500).json({ error: err.message || "Failed to create RSVP" });
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch current user" });
   }
 });
+
+// Return RSVPs for current authenticated user
+app.get("/api/me/rsvps", auth, async (req, res) => {
+  try {
+    const id = req.user && req.user.id;
+    if (!id) return res.status(401).json({ error: "Unauthorized" });
+    const rsvps = await Rsvp.find({ user: id })
+      .populate("event", "title date location")
+      .populate("user", "username email");
+
+    const normalized = rsvps.map((r) => {
+      const obj = r.toObject ? r.toObject() : r;
+      if (obj.event && obj.event.date) obj.event.date = new Date(obj.event.date).toISOString();
+      return obj;
+    });
+    res.json(normalized);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch user RSVPs" });
+  }
+});
+
+// Create a new RSVP (authenticated)
+app.post(
+  "/api/rsvps",
+  auth,
+  [body("eventId").exists().withMessage("eventId is required")],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+      const { eventId, status } = req.body;
+      const mongoose = require("mongoose");
+      if (!mongoose.Types.ObjectId.isValid(eventId)) return res.status(400).json({ error: "Invalid eventId" });
+
+      const userId = req.user && req.user.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      // Ensure event and user exist to provide clearer errors instead of a 500
+      const [foundEvent, foundUser] = await Promise.all([
+        Event.findById(eventId).select("_id title"),
+        User.findById(userId).select("_id username email"),
+      ]);
+      if (!foundEvent) return res.status(404).json({ error: "Event not found" });
+      if (!foundUser) return res.status(404).json({ error: "User not found" });
+
+      const rsvp = new Rsvp({
+        event: eventId,
+        user: userId,
+        status: status || "interested",
+      });
+
+      await rsvp.save();
+      await rsvp.populate("event", "title date location");
+      await rsvp.populate("user", "username email");
+
+      res.status(201).json(rsvp);
+    } catch (err) {
+      if (err.code === 11000)
+        return res.status(400).json({ error: "RSVP already exists for this event and user" });
+      console.error("RSVP create error:", err && err.stack ? err.stack : err);
+      res.status(500).json({ error: err.message || "Failed to create RSVP" });
+    }
+  }
+);
 
 /* ==================== START SERVER ==================== */
 const PORT = process.env.PORT || 5050;
