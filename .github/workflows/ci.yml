@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, jake ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x]
+
+    services:
+      mongo:
+        image: mongo:5.0
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install server dependencies
+        working-directory: ./server
+        # Use npm install here because package-lock.json may be out of sync when
+        # devDependencies were modified in a branch; CI runs in a clean env so
+        # install is safe and will produce a lockfile if needed.
+        run: |
+          npm install
+
+      - name: Wait for MongoDB service
+        run: |
+          echo "Waiting for MongoDB to accept connections on localhost:27017..."
+          for i in {1..60}; do
+            if bash -c "</dev/tcp/localhost/27017" >/dev/null 2>&1; then
+              echo "MongoDB is accepting connections";
+              exit 0;
+            fi
+            sleep 1
+          done
+          echo "Timed out waiting for MongoDB";
+          exit 1
+
+      - name: Install server dependencies
+        working-directory: ./server
+        # Use npm install here because package-lock.json may be out of sync when
+        # devDependencies were modified in a branch; CI runs in a clean env so
+        # install is safe and will produce a lockfile if needed.
+        run: |
+          npm install
+
+      - name: Run server tests
+        working-directory: ./server
+        env:
+          CI: true
+          # Point tests to the running MongoDB service started above
+          TEST_MONGO_URI: mongodb://localhost:27017
+        run: |
+          npm test --silent
+
+      - name: Install client dependencies
+        working-directory: ./client
+        run: |
+          npm ci
+
+      - name: Build client
+        working-directory: ./client
+        env:
+          CI: true
+        run: |
+          npm run build --silent
+
+      - name: Upload client build (artifact)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-build
+          path: client/build
