@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useContext } from "react";
 import { useLocation, useNavigate, useParams, Link } from "react-router-dom";
 import "../styles.css";
-import { getEventById, postRsvp, getEventRsvps } from "../api";
+import { getEventById, postRsvp, getEventRsvps, deleteRsvp } from "../api";
 import { AuthContext } from "../AuthContext";
 
 export default function EventDetails() {
@@ -100,16 +100,59 @@ export default function EventDetails() {
         <p className="event-description">
           {`Join us for ${event.title}, featuring incredible music and a vibrant Nashville crowd!`}
         </p>
-        <button
-          className="rsvp-btn"
-          onClick={async () => {
-            // Ensure user is logged in (server derives user from Authorization JWT)
-            const userIdRaw = user?.id || user?._id;
-            if (!user || !userIdRaw) {
-              alert("Please log in to RSVP.");
-              navigate("/login");
-              return;
+        <div style={{ marginTop: "1rem" }}>
+          {/* Show Cancel if user already attending, otherwise show RSVP */}
+          {(() => {
+            const currentUserId = user?.id || user?._id;
+            const isAttending = attendees.some((r) => {
+              const u = r.user || {};
+              const uid = u._id || u.id;
+              return uid && currentUserId && String(uid) === String(currentUserId);
+            });
+
+            if (isAttending) {
+              return (
+                <button
+                  className="rsvp-btn"
+                  onClick={async () => {
+                    // ensure logged in
+                    if (!user) {
+                      alert("Please log in to cancel RSVP.");
+                      navigate("/login");
+                      return;
+                    }
+                    const evId = event._id || event.id || id;
+                    try {
+                      await deleteRsvp(evId);
+                      // remove current user's rsvp from attendees locally
+                      const currentUserId2 = user?.id || user?._id;
+                      setAttendees((prev) => prev.filter((r) => {
+                        const uid = (r.user && (r.user._id || r.user.id)) || null;
+                        return !(uid && String(uid) === String(currentUserId2));
+                      }));
+                      alert("RSVP cancelled");
+                    } catch (err) {
+                      console.error("Cancel RSVP failed", err);
+                      alert(err.message || "Failed to cancel RSVP");
+                    }
+                  }}
+                >
+                  Cancel RSVP
+                </button>
+              );
             }
+
+            return (
+              <button
+                className="rsvp-btn"
+                onClick={async () => {
+                  // Ensure user is logged in (server derives user from Authorization JWT)
+                  const userIdRaw = user?.id || user?._id;
+                  if (!user || !userIdRaw) {
+                    alert("Please log in to RSVP.");
+                    navigate("/login");
+                    return;
+                  }
 
             // Normalize event id and user id to strings that look like ObjectId
             const getIdStr = (v) => {
@@ -144,10 +187,13 @@ export default function EventDetails() {
               // api throws Error with server message when available
               alert(err.message || JSON.stringify(err) || "Failed to RSVP");
             }
-          }}
-        >
-          RSVP
-        </button>
+                }}
+              >
+                RSVP
+              </button>
+            );
+          })()}
+        </div>
       </div>
     </div>
   );

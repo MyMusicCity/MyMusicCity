@@ -6,6 +6,27 @@ const API_BASE = (
   process.env.REACT_APP_API_URL || (typeof window !== "undefined" && window.location && window.location.origin) || ""
 ).replace(/\/$/, "");
 
+// Small helper to avoid fetch hanging indefinitely in environments that return
+// an HTML auth page or otherwise stall. Returns a Response or throws on abort.
+async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...opts, signal: controller.signal });
+    clearTimeout(id);
+    return res;
+  } catch (err) {
+    clearTimeout(id);
+    if (err.name === "AbortError") throw new Error("Request timed out");
+    // Enhance network errors so the UI can display actionable hints
+    const msg = err && err.message ? String(err.message) : "Network error";
+    if (msg.toLowerCase().includes("failed to fetch") || msg.toLowerCase().includes("networkerror") || msg.toLowerCase().includes("network error")) {
+      throw new Error("Network error or request blocked (CORS / SSO / proxy). " + msg);
+    }
+    throw err;
+  }
+}
+
 // --- Safe health check (won't break UI) ---
 export async function ping() {
   if (!API_BASE) return { ok: false, reason: "no API base url configured" };
@@ -40,7 +61,7 @@ export async function postRsvp(eventId, status = "going") {
   const headers = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}/api/rsvps`, {
+  const res = await fetchWithTimeout(`${API_BASE}/api/rsvps`, {
     method: "POST",
     headers,
     credentials: "include",
@@ -62,7 +83,7 @@ export async function getUserRsvps(userId) {
   // Backward-compatible: if called with a userId, still fetch that user's RSVPs
   if (!API_BASE) return [];
   if (userId) {
-    const res = await fetch(`${API_BASE}/api/rsvps/user/${userId}`, { credentials: "include" });
+    const res = await fetchWithTimeout(`${API_BASE}/api/rsvps/user/${userId}`, { credentials: "include" });
     if (!res.ok) throw new Error(`User RSVPs failed: ${res.status}`);
     return res.json();
   }
@@ -70,7 +91,7 @@ export async function getUserRsvps(userId) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}/api/me/rsvps`, { credentials: "include", headers });
+  const res = await fetchWithTimeout(`${API_BASE}/api/me/rsvps`, { credentials: "include", headers });
   if (!res.ok) throw new Error(`User RSVPs (me) failed: ${res.status}`);
   return res.json();
 }
@@ -81,23 +102,46 @@ export async function getMeRsvps() {
 
 export async function getEventRsvps(eventId) {
   if (!API_BASE) return [];
-  const res = await fetch(`${API_BASE}/api/rsvps/event/${eventId}`, { credentials: "include" });
+  const res = await fetchWithTimeout(`${API_BASE}/api/rsvps/event/${eventId}`, { credentials: "include" });
   if (!res.ok) throw new Error(`Event RSVPs failed: ${res.status}`);
   return res.json();
 }
 
+export async function deleteRsvp(eventId) {
+  if (!API_BASE) throw new Error("No API base URL configured");
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetchWithTimeout(`${API_BASE}/api/rsvps/event/${eventId}`, {
+    method: "DELETE",
+    headers,
+    credentials: "include",
+  });
+
+  let payload = {};
+  try {
+    payload = await res.json();
+  } catch (e) {
+    // ignore parse errors for empty responses
+  }
+  if (!res.ok) throw new Error(payload?.error || `Delete RSVP failed: ${res.status}`);
+  return payload;
+}
+
 export async function getUserById(id) {
   if (!API_BASE) throw new Error("No API base URL configured");
-  const res = await fetch(`${API_BASE}/api/users/${id}`, { credentials: "include" });
+  const res = await fetchWithTimeout(`${API_BASE}/api/users/${id}`, { credentials: "include" });
   if (!res.ok) throw new Error(`Get user failed: ${res.status}`);
   return res.json();
 }
 
 export async function signupUser(username, email, password, year, major) {
   console.log("API_BASE is", API_BASE);
-  const res = await fetch(`${API_BASE}/api/signup`, {
+  const res = await fetchWithTimeout(`${API_BASE}/api/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ username, email, password, year, major }),
   });
 
@@ -116,20 +160,33 @@ export async function signupUser(username, email, password, year, major) {
 
 
 export async function loginUser(email, password) {
-  const res = await fetch(`${API_BASE}/api/login`, {
+  // Use a timeout and include credentials. If the server returns an HTML page
+  // (e.g. a login proxy or SSO page), parse will fail and we surface a helpful
+  // error instead of leaving the UI stuck.
+  const res = await fetchWithTimeout(`${API_BASE}/api/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ email, password }),
   });
-  // Parse JSON and include server-provided error if available
-  let payload;
-  try {
-    payload = await res.json();
-  } catch (e) {
-    if (!res.ok) throw new Error(`Login failed: status ${res.status}`);
-    return {};
+
+  // Try to parse JSON; if response is HTML or unparsable, throw with hint.
+  const contentType = res.headers.get("content-type") || "";
+  let payload = null;
+  if (contentType.includes("application/json")) {
+    try {
+      payload = await res.json();
+    } catch (e) {
+      // fall through to error below
+    }
+  } else if (contentType.includes("text/html")) {
+    throw new Error("Authentication blocked by an HTML login page (possible SSO or proxy). Please check deployment auth settings.");
   }
-  if (!res.ok) throw new Error(payload?.error || payload?.message || `Login failed: ${res.status}`);
-  return payload;
+
+  if (!res.ok) {
+    // If we got JSON, use server message; otherwise show status
+    throw new Error((payload && (payload.error || payload.message)) || `Login failed: ${res.status}`);
+  }
+  return payload || {};
 }
 

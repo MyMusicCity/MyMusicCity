@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useContext } from "react";
-import { getUserRsvps, getMeRsvps } from "../api";
+import { getUserRsvps, getMeRsvps, ping } from "../api";
 import EventCard from "../components/EventCard";
 import { AuthContext } from "../AuthContext";
 import "../styles.css";
@@ -21,6 +21,18 @@ export default function RSVPs() {
       .finally(() => setLoading(false));
   }, [user]);
 
+  // Diagnostics state
+  const [diag, setDiag] = useState(null);
+  const runDiag = async () => {
+    setDiag({ running: true });
+    try {
+      const res = await ping();
+      setDiag({ running: false, ok: !!res?.ok, details: res });
+    } catch (e) {
+      setDiag({ running: false, ok: false, error: e.message || String(e) });
+    }
+  };
+
   if (!user) {
     return (
       <div className="rsvp-page">
@@ -37,7 +49,22 @@ export default function RSVPs() {
       {loading ? (
         <p>Loading...</p>
       ) : error ? (
-        <p className="error">{error}</p>
+        <div>
+          <p className="error">{error}</p>
+          <div style={{ marginTop: "0.5rem" }}>
+            <button onClick={runDiag} className="small-btn">Run diagnostics</button>
+            {diag?.running && <span style={{ marginLeft: 8 }}>Checking...</span>}
+            {diag && !diag.running && (
+              <div style={{ marginTop: "0.5rem" }}>
+                {diag.ok ? (
+                  <span style={{ color: "green" }}>Server reachable</span>
+                ) : (
+                  <span style={{ color: "red" }}>Server unreachable: {diag.error || JSON.stringify(diag.details)}</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       ) : rsvps.length > 0 ? (
         <div className="grid">
           {rsvps.map((r) => (

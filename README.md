@@ -50,3 +50,21 @@ Security notes:
 - Do not commit your `.env` or database credentials to the repository.
 - Use repo secrets (GitHub) or platform env vars (Render) to store `MONGO_URI`.
 
+## CI status
+
+![CI](https://github.com/MyMusicCity/MyMusicCity/actions/workflows/ci.yml/badge.svg)
+
+## Developer quick-start (server)
+
+Run server tests locally (unit + integration):
+
+```powershell
+# from repo root
+cd .\server
+npm ci
+npm test
+```
+
+If `npm ci` fails locally with EPERM / cleanup errors (Windows): see `scripts/cleanup-node-modules.ps1` for a helper to remove node_modules and clear npm cache.
+
+
