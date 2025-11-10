@@ -23,6 +23,19 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
+      - name: Install system libs required by mongodb-memory-server
+        # mongodb-memory-server uses pre-built mongod binaries that may depend on
+        # libcrypto.so.1.1 on Ubuntu runners. Install compatibility library when
+        # possible; otherwise download a .deb fallback and install it.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl1.1 || true
+          if [ ! -f /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 ]; then
+            echo "libcrypto.so.1.1 not present; downloading fallback .deb"
+            wget -qO /tmp/libssl1.1.deb http://archive.ubuntu.com/ubuntu/pool/main/o/openssl1.1/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+            sudo dpkg -i /tmp/libssl1.1.deb || sudo apt-get -f install -y
+          fi
+
       - name: Install server dependencies
         working-directory: ./server
         # Use npm install here because package-lock.json may be out of sync when
