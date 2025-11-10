@@ -42,9 +42,18 @@ describe('RSVP integration (signup -> rsvp -> attendees)', () => {
       .post('/api/signup')
       .send({ username, email, password })
       .expect(201);
+    // After signup we should have an unverified user. Verify via token
+    const created = await User.findOne({ email }).exec();
+    expect(created).toBeTruthy();
+    const verifyToken = created.emailVerificationToken;
+    expect(verifyToken).toBeTruthy();
 
-    expect(signupRes.body).toHaveProperty('token');
-    const token = signupRes.body.token;
+    // Call verify endpoint
+    await request(app).post('/api/verify-email').send({ token: verifyToken, email }).expect(200);
+
+    // Now login to obtain JWT
+    const loginRes = await request(app).post('/api/login').send({ email, password }).expect(200);
+    const token = loginRes.body.token;
 
     // Create an event directly via model (no public create endpoint)
     const event = await Event.create({ title: 'Integration Event', date: new Date(), location: 'Test Hall' });
