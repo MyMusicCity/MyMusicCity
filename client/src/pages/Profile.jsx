@@ -28,10 +28,13 @@ export default function Profile() {
     if (storedUser) {
       const user = JSON.parse(storedUser);
       setProfile((prev) => ({
-        ...prev,
-        name: user.username || "Unnamed User",
-        email: user.email || "No email provided",
-      }));
+  ...prev,
+  name: user.username || "Unnamed User",
+  email: user.email || "No email provided",
+  year: user.year || "Unknown",
+  major: user.major || "Unknown",
+}));
+
     } else {
       // If not logged in, redirect to login page
       navigate("/login");
