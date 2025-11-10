@@ -33,13 +33,18 @@ export async function getEventById(id) {
   return res.json();
 }
 
-export async function postRsvp(eventId, userId, status = "going") {
+export async function postRsvp(eventId, status = "going") {
   if (!API_BASE) throw new Error("No API base URL configured");
+  // Prefer Authorization header with JWT when available (AuthContext stores token in localStorage)
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   const res = await fetch(`${API_BASE}/api/rsvps`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     credentials: "include",
-    body: JSON.stringify({ eventId, userId, status }),
+    body: JSON.stringify({ eventId, status }),
   });
   // Parse JSON and surface server-provided error messages when present
   let payload;
@@ -54,10 +59,24 @@ export async function postRsvp(eventId, userId, status = "going") {
 }
 
 export async function getUserRsvps(userId) {
+  // Backward-compatible: if called with a userId, still fetch that user's RSVPs
   if (!API_BASE) return [];
-  const res = await fetch(`${API_BASE}/api/rsvps/user/${userId}`, { credentials: "include" });
-  if (!res.ok) throw new Error(`User RSVPs failed: ${res.status}`);
+  if (userId) {
+    const res = await fetch(`${API_BASE}/api/rsvps/user/${userId}`, { credentials: "include" });
+    if (!res.ok) throw new Error(`User RSVPs failed: ${res.status}`);
+    return res.json();
+  }
+  // If no userId provided, prefer the authenticated /api/me/rsvps endpoint using stored token
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/me/rsvps`, { credentials: "include", headers });
+  if (!res.ok) throw new Error(`User RSVPs (me) failed: ${res.status}`);
   return res.json();
+}
+
+export async function getMeRsvps() {
+  return getUserRsvps();
 }
 
 export async function getEventRsvps(eventId) {

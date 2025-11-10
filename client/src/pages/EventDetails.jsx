@@ -103,7 +103,7 @@ export default function EventDetails() {
         <button
           className="rsvp-btn"
           onClick={async () => {
-            // Ensure we have a user object with an id (either id or _id)
+            // Ensure user is logged in (server derives user from Authorization JWT)
             const userIdRaw = user?.id || user?._id;
             if (!user || !userIdRaw) {
               alert("Please log in to RSVP.");
@@ -133,14 +133,9 @@ export default function EventDetails() {
               alert("This event cannot be RSVPed to (not a server-backed event).");
               return;
             }
-            if (!isLikelyObjectId(userIdStr)) {
-              alert("Your account id looks invalid for RSVP. Please re-login and try again.");
-              return;
-            }
-
             try {
-              console.log("Posting RSVP", { eventId: eventIdStr, userId: userIdStr });
-              const payload = await postRsvp(eventIdStr, userIdStr);
+              console.log("Posting RSVP", { eventId: eventIdStr });
+              const payload = await postRsvp(eventIdStr);
               // server returns populated RSVP; show simple confirmation
               alert("RSVP successful!");
               console.log("RSVP created:", payload);

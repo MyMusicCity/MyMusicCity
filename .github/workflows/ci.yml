@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, jake ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install server dependencies
+        working-directory: ./server
+        run: |
+          npm ci
+
+      - name: Run server tests
+        working-directory: ./server
+        env:
+          CI: true
+        run: |
+          npm test --silent
+
+      - name: Install client dependencies
+        working-directory: ./client
+        run: |
+          npm ci
+
+      - name: Build client
+        working-directory: ./client
+        env:
+          CI: true
+        run: |
+          npm run build --silent
+
+      - name: Upload client build (artifact)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-build
+          path: client/build

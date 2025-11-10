@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useContext } from "react";
-import { getUserRsvps } from "../api";
+import { getUserRsvps, getMeRsvps } from "../api";
 import EventCard from "../components/EventCard";
 import { AuthContext } from "../AuthContext";
 import "../styles.css";
@@ -11,15 +11,15 @@ export default function RSVPs() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const userId = user ? user.id || user._id : null;
-    if (!userId) return;
+    if (!user) return;
 
     setLoading(true);
-    getUserRsvps(userId)
+    // Prefer the authenticated endpoint so the client does not need to supply the user id
+    getMeRsvps()
       .then((data) => setRsvps(data || []))
       .catch((err) => setError(err.message || "Failed to load RSVPs"))
       .finally(() => setLoading(false));
-  }, [user && (user.id || user._id)]);
+  }, [user]);
 
   if (!user) {
     return (
