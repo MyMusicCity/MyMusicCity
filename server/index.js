@@ -73,11 +73,22 @@ app.get("/api/events", async (_req, res) => {
   try {
     // Use lean() to return plain objects and avoid mongoose document serialization issues
     let events = await Event.find().populate("createdBy", "username email").lean().exec();
-    // Normalize date to ISO string to avoid client-side parsing surprises
+
+    // Get RSVP counts for all events in a single aggregation to avoid N+1 queries
+    const counts = await Rsvp.aggregate([
+      { $group: { _id: "$event", count: { $sum: 1 } } },
+    ]).exec();
+    const countsMap = counts.reduce((m, c) => {
+      if (c._id) m[String(c._id)] = c.count; return m;
+    }, {});
+
+    // Normalize date to ISO string and attach rsvpCount (default 0)
     events = events.map((ev) => ({
       ...ev,
       date: ev.date ? new Date(ev.date).toISOString() : null,
+      rsvpCount: countsMap[String(ev._id || ev.id)] || 0,
     }));
+
     res.json(events);
   } catch (err) {
     console.error(err);
