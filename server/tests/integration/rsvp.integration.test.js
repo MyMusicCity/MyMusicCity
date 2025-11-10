@@ -1,8 +1,7 @@
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
 const request = require('supertest');
 
-let mongod;
+let mongod; // only used if we start an in-memory server
 let app;
 
 const User = require('../../models/User');
@@ -10,9 +9,20 @@ const Event = require('../../models/Event');
 
 describe('RSVP integration (signup -> rsvp -> attendees)', () => {
   beforeAll(async () => {
-    mongod = await MongoMemoryServer.create();
-    const uri = mongod.getUri();
-    await mongoose.connect(uri, { dbName: 'testdb' });
+    // Prefer a real MongoDB when TEST_MONGO_URI is provided (e.g. CI).
+    // This avoids launching mongodb-memory-server which needs platform-specific
+    // mongod binaries (and can fail when libcrypto.so.1.1 is missing).
+    const testUri = process.env.TEST_MONGO_URI;
+    if (testUri) {
+      await mongoose.connect(testUri, { dbName: 'testdb' });
+    } else {
+      // Fallback to mongodb-memory-server for local developer convenience.
+      const { MongoMemoryServer } = require('mongodb-memory-server');
+      mongod = await MongoMemoryServer.create();
+      const uri = mongod.getUri();
+      await mongoose.connect(uri, { dbName: 'testdb' });
+    }
+
     // require the app after mongoose connection so models share the connected mongoose
     app = require('../../app');
   });
