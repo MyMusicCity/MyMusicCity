@@ -274,4 +274,26 @@ app.post(
   }
 );
 
+// Cancel (delete) current user's RSVP for an event
+app.delete("/api/rsvps/event/:eventId", auth, async (req, res) => {
+  try {
+    const eventId = req.params.eventId;
+    const mongoose = require("mongoose");
+    if (!mongoose.Types.ObjectId.isValid(eventId))
+      return res.status(400).json({ error: "Invalid event id" });
+
+    const userId = req.user && req.user.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const deleted = await Rsvp.findOneAndDelete({ event: eventId, user: userId }).lean().exec();
+    if (!deleted) return res.status(404).json({ error: "RSVP not found" });
+
+    // Respond with a minimal object so client can update UI
+    return res.json({ deleted: true, event: eventId });
+  } catch (err) {
+    console.error("RSVP delete error:", err && err.stack ? err.stack : err);
+    res.status(500).json({ error: "Failed to delete RSVP" });
+  }
+});
+
 module.exports = app;

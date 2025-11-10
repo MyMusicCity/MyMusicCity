@@ -86,6 +86,28 @@ export async function getEventRsvps(eventId) {
   return res.json();
 }
 
+export async function deleteRsvp(eventId) {
+  if (!API_BASE) throw new Error("No API base URL configured");
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}/api/rsvps/event/${eventId}`, {
+    method: "DELETE",
+    headers,
+    credentials: "include",
+  });
+
+  let payload = {};
+  try {
+    payload = await res.json();
+  } catch (e) {
+    // ignore parse errors for empty responses
+  }
+  if (!res.ok) throw new Error(payload?.error || `Delete RSVP failed: ${res.status}`);
+  return payload;
+}
+
 export async function getUserById(id) {
   if (!API_BASE) throw new Error("No API base URL configured");
   const res = await fetch(`${API_BASE}/api/users/${id}`, { credentials: "include" });
