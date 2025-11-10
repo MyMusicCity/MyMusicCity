@@ -59,6 +59,18 @@ app.use("/api", authRoutes); // mounts /api/signup and /api/login
 
 // ===== Event Routes =====
 
+// Deployment info helper (small, safe endpoint to verify deployed branch/commit)
+app.get("/api/deploy-info", (_req, res) => {
+  // Provide easy-to-check metadata for deployed branches. These are populated
+  // from environment variables by CI/deploy (optional). Defaults are safe.
+  res.json({
+    branch: process.env.DEPLOY_BRANCH || process.env.BRANCH || "jake",
+    commit: process.env.COMMIT_SHA || process.env.COMMIT || null,
+    deployedAt: new Date().toISOString(),
+  });
+});
+
+
 // Get all users (hide passwords)
 app.get("/api/users", async (_req, res) => {
   try {
