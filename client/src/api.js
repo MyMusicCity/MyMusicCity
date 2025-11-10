@@ -18,6 +18,11 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
   } catch (err) {
     clearTimeout(id);
     if (err.name === "AbortError") throw new Error("Request timed out");
+    // Enhance network errors so the UI can display actionable hints
+    const msg = err && err.message ? String(err.message) : "Network error";
+    if (msg.toLowerCase().includes("failed to fetch") || msg.toLowerCase().includes("networkerror") || msg.toLowerCase().includes("network error")) {
+      throw new Error("Network error or request blocked (CORS / SSO / proxy). " + msg);
+    }
     throw err;
   }
 }
