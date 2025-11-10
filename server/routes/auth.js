@@ -91,6 +91,13 @@ router.post("/signup", async (req, res) => {
     // Send or log verification email
     await sendVerificationEmail(email, verifyLink);
 
+    // In development or when no SMTP transporter is configured, include the
+    // verification link in the API response to help debugging / onboarding.
+    const allowDevVerify = process.env.ALLOW_DEV_VERIFY === "true" || process.env.NODE_ENV !== "production";
+    if (!transporter || allowDevVerify) {
+      return res.status(201).json({ message: "User created; verification email sent.", verifyLink });
+    }
+
     res.status(201).json({ message: "User created; verification email sent." });
   } catch (err) {
     console.error(err);
