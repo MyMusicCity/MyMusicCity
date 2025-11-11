@@ -13,7 +13,7 @@ const MOCK_EVENTS = [
     location: "Centennial Park",
     date: "OCT 4, 2025",
     image:
-      "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2?auto=format&fit=crop&w=900&q=60",
+      "https://picsum.photos/400/240?random=201",
   },
   {
     id: 2,
@@ -21,7 +21,7 @@ const MOCK_EVENTS = [
     location: "The Basement East",
     date: "OCT 6, 2025",
     image:
-      "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=900&q=60",
+      "https://picsum.photos/400/240?random=202",
   },
   {
     id: 3,
@@ -29,7 +29,7 @@ const MOCK_EVENTS = [
     location: "Printer’s Alley",
     date: "OCT 9, 2025",
     image:
-      "https://images.unsplash.com/photo-1464375117522-1311d6a5b81f?auto=format&fit=crop&w=900&q=60",
+      "https://picsum.photos/400/240?random=203",
   },
 ];
 
@@ -208,7 +208,15 @@ export default function Home() {
               state={{ event: e }}
               className="event-card"
             >
-              <img src={e.image} alt={e.title} className="event-img" />
+              <img 
+                src={e.image || `https://picsum.photos/400/240?random=${e._id || e.id || Math.floor(Math.random() * 100)}`}
+                alt={e.title} 
+                className="event-img"
+                onError={(event) => {
+                  // Final fallback if all else fails
+                  event.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI0MCIgdmlld0JveD0iMCAwIDQwMCAyNDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjQwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xODUuNSAxMjBMMjAwIDEwNS41TDIxNC41IDEyMEwyMDAgMTM0LjVMMTg1LjUgMTIwWiIgZmlsbD0iIzk0QTNCOCIvPgo8L3N2Zz4K';
+                }}
+              />
               <div className="event-info">
                 <h4>{e.title}</h4>
                 <p className="location">{e.location}</p>
