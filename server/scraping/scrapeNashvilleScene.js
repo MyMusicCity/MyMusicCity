@@ -4,6 +4,7 @@ const puppeteer = require("puppeteer");
 const mongoose = require("../mongoose");
 const Event = require("../models/Event");
 const { getEventImage } = require("../utils/eventImages");
+const { launchBrowser } = require("../utils/puppeteerConfig");
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -20,10 +21,7 @@ async function scrapeDo615() {
     await mongoose.connect(process.env.MONGO_URI, { dbName: "mymusiccity" });
 
     console.log("Launching Puppeteer...");
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
+    browser = await launchBrowser();
     const page = await browser.newPage();
 
     console.log("Navigating to https://do615.com/events ...");

@@ -2,7 +2,7 @@
 // Helper to match events with appropriate images based on their content
 
 const musicGenreImages = {
-  // Rock/Indie images
+  // Rock/Indie images - Back to high-quality music photos
   rock: [
     "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=600&fit=crop&auto=format", // Rock concert crowd
     "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=600&fit=crop&auto=format", // Guitar on stage

@@ -10,6 +10,7 @@
     "scrape": "node server/scraping/scrapeNashvilleScene.js",
     "scrape:all": "node server/scraping/scrapeAll.js",
     "update-images": "node updateEventImages.js",
+    "quick-images": "node quickImageUpdate.js",
     "test": "jest",
     "test:client": "npm --prefix client test",
     "postinstall": "npm --prefix server install",

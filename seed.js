@@ -20,7 +20,7 @@ const mockEvents = [
     date: new Date("2025-11-01T20:00:00Z"), 
     location: "Downtown Club", 
     createdByUsername: "jake",
-    image: getEventImage("Indie Rock Night", "Local indie bands showcase their latest tracks in an intimate setting", 0)
+    image: "https://picsum.photos/800/600?random=101"
   },
   { 
     title: "Jazz Jam Session", 
@@ -28,7 +28,7 @@ const mockEvents = [
     date: new Date("2025-11-07T19:30:00Z"), 
     location: "Blue Note Café", 
     createdByUsername: "sarah",
-    image: getEventImage("Jazz Jam Session", "Open mic for jazz players and saxophone enthusiasts", 1)
+    image: "https://picsum.photos/800/600?random=102"
   },
   { 
     title: "Hip-Hop Showcase", 
@@ -36,7 +36,7 @@ const mockEvents = [
     date: new Date("2025-11-15T21:00:00Z"), 
     location: "Warehouse 9", 
     createdByUsername: "mike",
-    image: getEventImage("Hip-Hop Showcase", "Emerging hip-hop artists and rappers take the stage", 2)
+    image: "https://picsum.photos/800/600?random=103"
   },
   {
     title: "Country Music Night",
@@ -44,7 +44,7 @@ const mockEvents = [
     date: new Date("2025-11-22T19:00:00Z"),
     location: "Honky Tonk Central",
     createdByUsername: "jake",
-    image: getEventImage("Country Music Night", "Authentic Nashville country music experience with local artists", 3)
+    image: "https://picsum.photos/800/600?random=104"
   },
   {
     title: "Electronic Dance Party",
@@ -52,7 +52,7 @@ const mockEvents = [
     date: new Date("2025-11-28T22:00:00Z"),
     location: "Club Voltage",
     createdByUsername: "sarah",
-    image: getEventImage("Electronic Dance Party", "DJ sets and electronic music all night long", 4)
+    image: "https://picsum.photos/800/600?random=105"
   }
 ];
 

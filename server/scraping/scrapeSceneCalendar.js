@@ -4,6 +4,7 @@ const cheerio = require("cheerio");
 const puppeteer = require("puppeteer");
 const mongoose = require("../mongoose");
 const Event = require("../models/Event");
+const { launchBrowser } = require("../utils/puppeteerConfig");
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 
 async function fetchWithAxios(url) {
@@ -75,10 +76,7 @@ async function scrapeSceneCalendar() {
     // If nothing found, fallback to puppeteer (site may be JS heavy)
     if (!html || events.length === 0) {
       console.log("No items found with Axios/Cheerio; falling back to Puppeteer...");
-      browser = await puppeteer.launch({
-        headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-      });
+      browser = await launchBrowser();
       const page = await browser.newPage();
       // Set a common desktop user agent to reduce bot detection differences
       await page.setUserAgent(
