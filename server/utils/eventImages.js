@@ -2,60 +2,60 @@
 // Helper to match events with appropriate images based on their content
 
 const musicGenreImages = {
-  // Rock/Indie images
+  // Rock/Indie images - Using reliable stock photo services
   rock: [
-    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=600&fit=crop&auto=format", // Rock concert crowd
-    "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=600&fit=crop&auto=format", // Guitar on stage
-    "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&h=600&fit=crop&auto=format", // Band performing
-    "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&h=600&fit=crop&auto=format", // Electric guitar close-up
+    "https://picsum.photos/800/600?random=1", // Concert crowd
+    "https://picsum.photos/800/600?random=2", // Guitar on stage
+    "https://picsum.photos/800/600?random=3", // Band performing
+    "https://picsum.photos/800/600?random=4", // Electric guitar close-up
   ],
   indie: [
-    "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=800&h=600&fit=crop&auto=format", // Indie band setup
-    "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&h=600&fit=crop&auto=format", // Small venue stage
-    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=600&fit=crop&auto=format", // Intimate concert
-    "https://images.unsplash.com/photo-1525201548942-d8732f6617a0?w=800&h=600&fit=crop&auto=format", // Indie venue atmosphere
+    "https://picsum.photos/800/600?random=5", // Indie band setup
+    "https://picsum.photos/800/600?random=6", // Small venue stage
+    "https://picsum.photos/800/600?random=7", // Intimate concert
+    "https://picsum.photos/800/600?random=8", // Indie venue atmosphere
   ],
   
   // Jazz images
   jazz: [
-    "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&h=600&fit=crop&auto=format", // Saxophone close-up
-    "https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=800&h=600&fit=crop&auto=format", // Jazz club atmosphere
-    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=600&fit=crop&auto=format", // Piano and sax
-    "https://images.unsplash.com/photo-1618609377864-68609b857e90?w=800&h=600&fit=crop&auto=format", // Jazz musicians
+    "https://picsum.photos/800/600?random=9", // Saxophone close-up
+    "https://picsum.photos/800/600?random=10", // Jazz club atmosphere
+    "https://picsum.photos/800/600?random=11", // Piano and sax
+    "https://picsum.photos/800/600?random=12", // Jazz musicians
   ],
   
   // Hip-hop images
   hiphop: [
-    "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&h=600&fit=crop&auto=format", // Rapper on stage
-    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=600&fit=crop&auto=format", // Urban concert
-    "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=600&fit=crop&auto=format", // DJ setup
-    "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=800&h=600&fit=crop&auto=format", // Hip hop event
+    "https://picsum.photos/800/600?random=13", // Rapper on stage
+    "https://picsum.photos/800/600?random=14", // Urban concert
+    "https://picsum.photos/800/600?random=15", // DJ setup
+    "https://picsum.photos/800/600?random=16", // Hip hop event
   ],
   
   // Country images
   country: [
-    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=600&fit=crop&auto=format", // Country venue
-    "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=600&fit=crop&auto=format", // Acoustic guitar
-    "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=800&h=600&fit=crop&auto=format", // Honky tonk
-    "https://images.unsplash.com/photo-1520637836862-4d197d17c89a?w=800&h=600&fit=crop&auto=format", // Country guitar
+    "https://picsum.photos/800/600?random=17", // Country venue
+    "https://picsum.photos/800/600?random=18", // Acoustic guitar
+    "https://picsum.photos/800/600?random=19", // Honky tonk
+    "https://picsum.photos/800/600?random=20", // Country guitar
   ],
   
   // Electronic/DJ images
   electronic: [
-    "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=600&fit=crop&auto=format", // DJ booth
-    "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&h=600&fit=crop&auto=format", // Electronic setup
-    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=600&fit=crop&auto=format", // Dance floor
-    "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=600&fit=crop&auto=format", // DJ mixing
+    "https://picsum.photos/800/600?random=21", // DJ booth
+    "https://picsum.photos/800/600?random=22", // Electronic setup
+    "https://picsum.photos/800/600?random=23", // Dance floor
+    "https://picsum.photos/800/600?random=24", // DJ mixing
   ],
   
   // General music images
   general: [
-    "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=600&fit=crop&auto=format", // Concert crowd
-    "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=800&h=600&fit=crop&auto=format", // Stage lights
-    "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&h=600&fit=crop&auto=format", // Live performance
-    "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=600&fit=crop&auto=format", // Music equipment
-    "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&h=600&fit=crop&auto=format", // Venue atmosphere
-    "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&h=600&fit=crop&auto=format", // Musical instruments
+    "https://picsum.photos/800/600?random=25", // Concert crowd
+    "https://picsum.photos/800/600?random=26", // Stage lights
+    "https://picsum.photos/800/600?random=27", // Live performance
+    "https://picsum.photos/800/600?random=28", // Music equipment
+    "https://picsum.photos/800/600?random=29", // Venue atmosphere
+    "https://picsum.photos/800/600?random=30", // Musical instruments
   ]
 };
 
