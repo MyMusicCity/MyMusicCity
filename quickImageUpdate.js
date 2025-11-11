@@ -26,13 +26,23 @@ async function quickUpdateImages() {
       return;
     }
 
-    // Update each event with a simple stock photo
+    // Update each event with a high-quality music photo
+    const musicImages = [
+      'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=600&fit=crop&auto=format', // Concert crowd
+      'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=800&h=600&fit=crop&auto=format', // Stage lights
+      'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&h=600&fit=crop&auto=format', // Live performance
+      'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=600&fit=crop&auto=format', // Music equipment
+      'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&h=600&fit=crop&auto=format', // Venue atmosphere
+      'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&h=600&fit=crop&auto=format', // Saxophone
+      'https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=800&h=600&fit=crop&auto=format', // Jazz club
+    ];
+
     let updateCount = 0;
     for (let i = 0; i < allEvents.length; i++) {
       const event = allEvents[i];
       
-      // Use simple Lorem Picsum URLs
-      const newImage = `https://picsum.photos/800/600?random=${i + 300}`;
+      // Cycle through the music images
+      const newImage = musicImages[i % musicImages.length];
 
       try {
         await Event.updateOne(

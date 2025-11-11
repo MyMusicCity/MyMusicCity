@@ -13,7 +13,7 @@ const MOCK_EVENTS = [
     location: "Centennial Park",
     date: "OCT 4, 2025",
     image:
-      "https://picsum.photos/400/240?random=201",
+      "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=240&fit=crop&auto=format",
   },
   {
     id: 2,
@@ -21,7 +21,7 @@ const MOCK_EVENTS = [
     location: "The Basement East",
     date: "OCT 6, 2025",
     image:
-      "https://picsum.photos/400/240?random=202",
+      "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=400&h=240&fit=crop&auto=format",
   },
   {
     id: 3,
@@ -29,7 +29,7 @@ const MOCK_EVENTS = [
     location: "Printer’s Alley",
     date: "OCT 9, 2025",
     image:
-      "https://picsum.photos/400/240?random=203",
+      "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=240&fit=crop&auto=format",
   },
 ];
 
