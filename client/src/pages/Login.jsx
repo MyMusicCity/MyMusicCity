@@ -1,7 +1,6 @@
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { loginUser, signupUser } from "../api";
-import { resendVerification } from "../api";
 import "../styles.css";
 import { AuthContext } from "../AuthContext";
 
@@ -18,7 +17,6 @@ export default function Login() {
   const [error, setError] = useState("");
   const { setToken, setUser } = useContext(AuthContext);
   const [loading, setLoading] = useState(false);
-  const [verifyInfo, setVerifyInfo] = useState(null);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
@@ -29,9 +27,12 @@ export default function Login() {
       const res = isSignup
         ? await signupUser(form.username, form.email, form.password, form.year, form.major)
         : await loginUser(form.email, form.password);
+      
       if (isSignup) {
-        // Signup returns message and in dev/no-SMTP may include verifyLink
-        setVerifyInfo({ message: res.message, verifyLink: res.verifyLink });
+        // After successful signup, show success message
+        setError("");
+        alert("Account created successfully! You can now log in.");
+        setIsSignup(false);
         setLoading(false);
         return;
       }
@@ -50,19 +51,6 @@ export default function Login() {
     } catch (err) {
       console.error("Login/signup error:", err);
       setError(err.message || "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResend = async () => {
-    if (!form.email) return setError("Enter your email to resend verification.");
-    setLoading(true);
-    try {
-      const resp = await resendVerification(form.email);
-      setVerifyInfo({ message: resp.message || resp.ok ? "Verification email resent." : null, verifyLink: resp.verifyLink });
-    } catch (e) {
-      setError(e.message || "Failed to resend verification");
     } finally {
       setLoading(false);
     }
@@ -130,18 +118,6 @@ export default function Login() {
                 : "Log In"}
             </button>
           </form>
-          {verifyInfo && (
-            <div style={{ marginTop: "1rem", padding: "0.5rem", border: "1px solid #ddd" }}>
-              <p>{verifyInfo.message || "A verification email was sent."}</p>
-              {verifyInfo.verifyLink ? (
-                <p>
-                  (Dev) Click to verify: <a href={verifyInfo.verifyLink}>{verifyInfo.verifyLink}</a>
-                </p>
-              ) : (
-                <p>Please check your email. If you don't receive it, use the resend option on the login page.</p>
-              )}
-            </div>
-          )}
           <p className="toggle-text">
             {isSignup ? "Already have an account?" : "Don’t have an account?"}{" "}
             <span onClick={() => setIsSignup(!isSignup)} className="toggle-link">
