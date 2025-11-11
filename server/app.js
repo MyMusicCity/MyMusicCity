@@ -9,6 +9,7 @@ const Rsvp = require("./models/Rsvp");
 
 // Import routes
 const authRoutes = require("./routes/auth");
+const updateImagesRoutes = require("./routes/updateImages");
 const auth = require("./middleware/auth");
 const { body, param, validationResult } = require("express-validator");
 
@@ -53,6 +54,9 @@ app.get("/ready", (_req, res) => {
 
 // ===== Auth Routes =====
 app.use("/api", authRoutes); // mounts /api/signup and /api/login
+
+// ===== Admin Routes =====
+app.use("/api/admin", updateImagesRoutes); // mounts /api/admin/update-all-images
 
 // ===== Event Routes =====
 
