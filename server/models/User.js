@@ -7,10 +7,6 @@ const UserSchema = new mongoose.Schema({
   year:     { type: String },   
   major:    { type: String },  
   createdAt:{ type: Date, default: Date.now },
-  // Email verification fields
-  emailVerified: { type: Boolean, default: false },
-  emailVerificationToken: { type: String },
-  emailVerificationExpires: { type: Date }
 });
 
 module.exports = mongoose.model("User", UserSchema);
