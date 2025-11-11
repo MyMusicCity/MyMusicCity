@@ -3,7 +3,7 @@
 <html lang="en">
 
 <head>
-    <title>Code coverage report for EventCard.jsx</title>
+    <title>Code coverage report for Navbar.jsx</title>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="prettify.css" />
     <link rel="stylesheet" href="base.css" />
@@ -19,34 +19,34 @@
 <body>
 <div class='wrapper'>
     <div class='pad1'>
-        <h1><a href="index.html">All files</a> EventCard.jsx</h1>
+        <h1><a href="index.html">All files</a> Navbar.jsx</h1>
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">85.71% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>6/7</span>
+                <span class='fraction'>1/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">62.5% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>5/8</span>
+                <span class='fraction'>0/0</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>3/3</span>
+                <span class='fraction'>1/1</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>6/6</span>
+                <span class='fraction'>1/1</span>
             </div>
         
             
@@ -87,17 +87,9 @@
 <a name='L22'></a><a href='#L22'>22</a>
 <a name='L23'></a><a href='#L23'>23</a>
 <a name='L24'></a><a href='#L24'>24</a>
-<a name='L25'></a><a href='#L25'>25</a>
-<a name='L26'></a><a href='#L26'>26</a>
-<a name='L27'></a><a href='#L27'>27</a>
-<a name='L28'></a><a href='#L28'>28</a>
-<a name='L29'></a><a href='#L29'>29</a>
-<a name='L30'></a><a href='#L30'>30</a>
-<a name='L31'></a><a href='#L31'>31</a>
-<a name='L32'></a><a href='#L32'>32</a>
-<a name='L33'></a><a href='#L33'>33</a>
-<a name='L34'></a><a href='#L34'>34</a>
-<a name='L35'></a><a href='#L35'>35</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L25'></a><a href='#L25'>25</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -105,20 +97,8 @@
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -133,36 +113,26 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import React from "react";
 import { Link } from "react-router-dom";
+import { FaHeart, FaUser } from "react-icons/fa";
+import { FaCommentDots } from "react-icons/fa6";
+import "../styles.css";
 &nbsp;
-export default function EventCard({ event }) {
-  // Use event._id when available (server objects) or fallback to event.id for mocks
-  const id = event._id || event.id;
-&nbsp;
-  // Use multiple fallbacks for image reliability
-  const getImageSrc = () =&gt; {
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (event.image) <span class="cstat-no" title="statement not covered" >return event.image;</span>
-    // Use a more reliable stock photo service with consistent sizing
-    return `https://picsum.photos/400/240?random=${id || <span class="branch-1 cbranch-no" title="branch not covered" >Math.floor(Math.random() * 100)}</span>`;
-  };
-&nbsp;
+export default function Navbar() {
   return (
-    &lt;Link to={`/event/${id}`} state={{ event }} className="event-card"&gt;
-      &lt;img 
-        src={getImageSrc()} 
-        alt={event.title}
-        onError={(e) =&gt; {
-          // Final fallback if all else fails
-          e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI0MCIgdmlld0JveD0iMCAwIDQwMCAyNDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjQwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xODUuNSAxMjBMMjAwIDEwNS41TDIxNC41IDEyMEwyMDAgMTM0LjVMMTg1LjUgMTIwWiIgZmlsbD0iIzk0QTNCOCIvPgo8L3N2Zz4K';
-        }}
-      /&gt;
-      &lt;div className="event-info"&gt;
-        &lt;h3&gt;{event.title}&lt;/h3&gt;
-        &lt;p&gt;{event.location}&lt;/p&gt;
-        &lt;p className="date"&gt;
-          {event.date ? new Date(event.date).toLocaleDateString() : <span class="branch-1 cbranch-no" title="branch not covered" >""}</span>
-        &lt;/p&gt;
+    &lt;nav className="navbar"&gt;
+      &lt;Link to="/" className="nav-logo"&gt;MyMusicCity&lt;/Link&gt;
+      &lt;div className="nav-icons"&gt;
+        &lt;Link to="/messages"&gt;
+          &lt;FaCommentDots className="nav-icon" title="Messages" /&gt;
+        &lt;/Link&gt;
+        &lt;Link to="/rsvps"&gt;
+          &lt;FaHeart className="nav-icon" title="My RSVPs" /&gt;
+        &lt;/Link&gt;
+        &lt;Link to="/profile"&gt;
+          &lt;FaUser className="nav-icon" title="Profile" /&gt;
+        &lt;/Link&gt;
       &lt;/div&gt;
-    &lt;/Link&gt;
+    &lt;/nav&gt;
   );
 }
 &nbsp;</pre></td></tr></table></pre>

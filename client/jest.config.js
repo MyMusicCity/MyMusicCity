@@ -8,6 +8,7 @@ module.exports = {
   moduleNameMapper: {
     "^react$": "<rootDir>/node_modules/react",
     "^react-dom$": "<rootDir>/node_modules/react-dom",
-    "^react/jsx-runtime$": "<rootDir>/node_modules/react/jsx-runtime"
+    "^react/jsx-runtime$": "<rootDir>/node_modules/react/jsx-runtime",
+    "\\.(css|less|sass|scss)$": "identity-obj-proxy"
   }
 };
