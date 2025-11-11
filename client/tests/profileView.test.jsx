@@ -1,4 +1,3 @@
-// ProfileView.test.js
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import '@testing-library/jest-dom';
@@ -8,7 +7,6 @@ import * as router from "react-router-dom";
 import ProfileView from "../src/pages/ProfileView.jsx";
 
 // mocking
-
 jest.mock("../src/api.js", () => ({
   getUserById: jest.fn(),
 }));

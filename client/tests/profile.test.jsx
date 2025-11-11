@@ -1,9 +1,6 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import '@testing-library/jest-dom';
-import { MemoryRouter, Routes, Route } from "react-router-dom";
-import * as api from "../src/api.js";
-import * as router from "react-router-dom";
 import Profile from "../src/pages/Profile.jsx";
 
 // mocking
@@ -22,14 +19,8 @@ jest.mock("react-router-dom", () => {
 });
 
 describe("Profile component", () => {
-  const mockUser = {
-    username: "alice",
-    email: "alice@example.com",
-    createdAt: "2024-05-01T00:00:00Z",
-  };
 
   beforeEach(() => {
-    api.getUserById.mockReset();
     mockNavigate.mockReset();
 
     localStorage.setItem(
