@@ -5,20 +5,55 @@ require("dotenv").config({ path: "./.env" });
 const User = require("./server/models/User");
 const Event = require("./server/models/Event");
 const Rsvp  = require("./server/models/Rsvp");
+const { getEventImage } = require("./server/utils/eventImages");
 
 const mockUsers = [
-  { username: "jake",  email: "jake@vanderbilt.edu",  password: "testpass1" },
-  { username: "sarah", email: "sarah@vanderbilt.edu", password: "testpass2" },
-  { username: "mike",  email: "mike@vanderbilt.edu",  password: "testpass3" },
+  { username: "jake",  email: "jake@example.com",  password: "testpass1" },
+  { username: "sarah", email: "sarah@example.com", password: "testpass2" },
+  { username: "mike",  email: "mike@example.com",  password: "testpass3" },
 ];
 
 const mockEvents = [
-  { title: "Indie Rock Night", description: "Local indie bands showcase",
-    date: new Date("2025-11-01T20:00:00Z"), location: "Downtown Club", createdByUsername: "jake" },
-  { title: "Jazz Jam", description: "Open mic for jazz players",
-    date: new Date("2025-11-07T19:30:00Z"), location: "Blue Note Café", createdByUsername: "sarah" },
-  { title: "Hip-Hop Showcase", description: "Emerging hip-hop artists",
-    date: new Date("2025-11-15T21:00:00Z"), location: "Warehouse 9", createdByUsername: "mike" },
+  { 
+    title: "Indie Rock Night", 
+    description: "Local indie bands showcase their latest tracks in an intimate setting",
+    date: new Date("2025-11-01T20:00:00Z"), 
+    location: "Downtown Club", 
+    createdByUsername: "jake",
+    image: getEventImage("Indie Rock Night", "Local indie bands showcase their latest tracks in an intimate setting", 0)
+  },
+  { 
+    title: "Jazz Jam Session", 
+    description: "Open mic for jazz players and saxophone enthusiasts",
+    date: new Date("2025-11-07T19:30:00Z"), 
+    location: "Blue Note Café", 
+    createdByUsername: "sarah",
+    image: getEventImage("Jazz Jam Session", "Open mic for jazz players and saxophone enthusiasts", 1)
+  },
+  { 
+    title: "Hip-Hop Showcase", 
+    description: "Emerging hip-hop artists and rappers take the stage",
+    date: new Date("2025-11-15T21:00:00Z"), 
+    location: "Warehouse 9", 
+    createdByUsername: "mike",
+    image: getEventImage("Hip-Hop Showcase", "Emerging hip-hop artists and rappers take the stage", 2)
+  },
+  {
+    title: "Country Music Night",
+    description: "Authentic Nashville country music experience with local artists",
+    date: new Date("2025-11-22T19:00:00Z"),
+    location: "Honky Tonk Central",
+    createdByUsername: "jake",
+    image: getEventImage("Country Music Night", "Authentic Nashville country music experience with local artists", 3)
+  },
+  {
+    title: "Electronic Dance Party",
+    description: "DJ sets and electronic music all night long",
+    date: new Date("2025-11-28T22:00:00Z"),
+    location: "Club Voltage",
+    createdByUsername: "sarah",
+    image: getEventImage("Electronic Dance Party", "DJ sets and electronic music all night long", 4)
+  }
 ];
 
 const mockRsvps = [

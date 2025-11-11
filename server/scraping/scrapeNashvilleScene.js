@@ -3,6 +3,7 @@ const path = require("path");
 const puppeteer = require("puppeteer");
 const mongoose = require("../mongoose");
 const Event = require("../models/Event");
+const { getEventImage } = require("../utils/eventImages");
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -78,7 +79,7 @@ async function scrapeDo615() {
         .trim();
     }
 
-    const formattedEvents = events.map((e) => {
+    const formattedEvents = events.map((e, index) => {
       let parsedDate = null;
       try {
         const today = new Date();
@@ -88,13 +89,16 @@ async function scrapeDo615() {
         parsedDate = new Date();
       }
 
+      // Use scraped image if available, otherwise generate one based on content
+      const eventImage = e.image || getEventImage(e.title, "Scraped from Do615 (Nashville Scene network)", index);
+
       return {
         title: e.title,
         normalizedTitle: normalizeTitle(e.title),
         description: "Scraped from Do615 (Nashville Scene network)",
         date: parsedDate,
         location: e.location,
-        image: e.image,
+        image: eventImage,
         url: e.url,
         createdBy: null, // avoid ObjectId casting issue
         source: "do615", // optional: mark origin

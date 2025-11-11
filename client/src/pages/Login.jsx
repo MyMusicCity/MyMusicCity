@@ -27,6 +27,15 @@ export default function Login() {
       const res = isSignup
         ? await signupUser(form.username, form.email, form.password, form.year, form.major)
         : await loginUser(form.email, form.password);
+      
+      if (isSignup) {
+        // After successful signup, show success message
+        setError("");
+        alert("Account created successfully! You can now log in.");
+        setIsSignup(false);
+        setLoading(false);
+        return;
+      }
 
       if (res?.token) {
         localStorage.setItem("token", res.token);
