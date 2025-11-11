@@ -7,9 +7,9 @@ const Event = require("./server/models/Event");
 const Rsvp  = require("./server/models/Rsvp");
 
 const mockUsers = [
-  { username: "jake",  email: "jake@vanderbilt.edu",  password: "testpass1" },
-  { username: "sarah", email: "sarah@vanderbilt.edu", password: "testpass2" },
-  { username: "mike",  email: "mike@vanderbilt.edu",  password: "testpass3" },
+  { username: "jake",  email: "jake@example.com",  password: "testpass1" },
+  { username: "sarah", email: "sarah@example.com", password: "testpass2" },
+  { username: "mike",  email: "mike@example.com",  password: "testpass3" },
 ];
 
 const mockEvents = [
