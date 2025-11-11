@@ -1,6 +1,8 @@
 // server/app.js
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
 const User = require("./models/User");
@@ -13,6 +15,24 @@ const auth = require("./middleware/auth");
 const { body, param, validationResult } = require("express-validator");
 
 const app = express();
+
+/* ------------------------- Global Security Middleware ------------------------- */
+// Helmet adds several secure headers (X-DNS-Prefetch-Control, X-Frame-Options, etc.).
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // allow static assets if served from Express later
+}));
+
+// Basic body size limit to mitigate large payload abuse (adjust if needed)
+app.use(express.json({ limit: "250kb" }));
+
+// Rate limit generic API traffic (excluding auth-specific tighter limits below)
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 1000, // broad limit suitable for general browsing
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(generalLimiter);
 
 /* -------------------------- CORS Configuration -------------------------- */
 const ALLOWLIST = [
@@ -36,12 +56,34 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options(/^\/.*$/, cors(corsOptions));
-app.use(express.json());
+// express.json already applied above with a size limit
 /* ------------------------------------------------------------------------ */
 
 // ===== Health & Root Routes =====
 app.get("/healthz", (_req, res) => res.status(200).json({ ok: true }));
 app.get("/", (_req, res) => res.send("Hello from MyMusicCity backend!"));
+
+/* --------------------------- Central Error Handling --------------------------- */
+// Downstream routes can call next(err). Provide consistent JSON shape.
+function errorHandler(err, req, res, _next) {
+  const status = err.statusCode || err.status || 500;
+  const inProd = process.env.NODE_ENV === "production";
+  const errorId = Math.random().toString(36).slice(2, 10);
+  // Minimal log format; can be replaced by pino/winston later.
+  console.error(`[error:${errorId}]`, {
+    message: err.message,
+    stack: inProd ? String(err.stack).split("\n").slice(0, 5).join(" | ") : err.stack,
+    path: req.path,
+    method: req.method,
+  });
+  const payload = {
+    error: err.publicMessage || err.message || "Internal Server Error",
+    errorId,
+  };
+  // Hide stack/message details in production unless explicitly safe
+  if (!inProd) payload.stack = err.stack;
+  res.status(status).json(payload);
+}
 
 // Readiness endpoint
 app.get("/ready", (_req, res) => {
@@ -52,7 +94,15 @@ app.get("/ready", (_req, res) => {
 });
 
 // ===== Auth Routes =====
-app.use("/api", authRoutes); // mounts /api/signup and /api/login
+// Apply a stricter rate limit only to auth endpoints to reduce brute-force attempts.
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  limit: 10, // max 10 auth attempts per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(["/api/signup", "/api/login", "/api/verify-email", "/api/resend-verification"], authLimiter);
+app.use("/api", authRoutes); // mounts /api/signup, /api/login, /api/verify-email, etc.
 
 // ===== Event Routes =====
 
@@ -295,5 +345,22 @@ app.delete("/api/rsvps/event/:eventId", auth, async (req, res) => {
     res.status(500).json({ error: "Failed to delete RSVP" });
   }
 });
+
+// ----- Static client (if bundled into server/public during container build) -----
+const path = require("path");
+const publicDir = path.join(__dirname, "public");
+app.use(express.static(publicDir));
+
+// SPA fallback: serve index.html for non-API GET routes
+app.get(/^(?!\/api\/).*/, (req, res, next) => {
+  if (req.method !== "GET") return next();
+  const indexPath = path.join(publicDir, "index.html");
+  res.sendFile(indexPath, (err) => {
+    if (err) next();
+  });
+});
+
+// Register error handler last
+app.use(errorHandler);
 
 module.exports = app;

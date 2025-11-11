@@ -5,6 +5,13 @@ const app = require("./app");
 
 const PORT = process.env.PORT || 5050;
 const MONGO_URI = process.env.MONGO_URI;
+const NODE_ENV = process.env.NODE_ENV || "development";
+
+// Fail fast if critical env vars are missing in production
+if (NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  console.error("❌ Missing JWT_SECRET in environment (required in production)");
+  process.exit(1);
+}
 
 if (!MONGO_URI) {
   console.error("❌ Missing MONGO_URI in .env file");
@@ -15,7 +22,7 @@ mongoose
   .connect(MONGO_URI, { dbName: "mymusiccity" })
   .then(() => {
     console.log("✅ Connected to MongoDB Atlas");
-    const HOST = process.env.HOST || "0.0.0.0";
+  const HOST = process.env.HOST || "0.0.0.0";
     // Only start listening when this module is the entrypoint
     if (require.main === module) {
       app.listen(PORT, HOST, () => {

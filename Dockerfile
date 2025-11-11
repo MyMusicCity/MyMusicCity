@@ -1,6 +1,9 @@
-FROM node:20-bullseye-slim
+### ---------------------------------------------------------------------------
+### Stage 1: Build client & install dependencies
+### ---------------------------------------------------------------------------
+FROM node:20-bullseye-slim AS build
 
-# Install libraries required by headless Chromium
+# Install libs required by headless Chromium (Puppeteer)
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     fonts-liberation \
@@ -35,16 +38,34 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy package manifests first to leverage Docker cache
+# Copy root manifests (will trigger server postinstall to install its deps)
 COPY package*.json ./
+COPY server/package*.json ./server/
+COPY client/package*.json ./client/
 
-# Ensure Puppeteer will download a compatible Chromium during npm ci
+ENV NODE_ENV=production
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=0
 
-RUN npm ci --production
+# Install root dependencies (includes server via postinstall) then client deps
+RUN npm ci --omit=dev \
+    && npm --prefix client install --omit=dev \
+    && npm --prefix client run build
 
-# Copy source
-COPY . .
+# ---------------------------------------------------------------------------
+# Stage 2: Production image
+# ---------------------------------------------------------------------------
+FROM node:20-bullseye-slim AS prod
+WORKDIR /app
+
+# Copy only necessary runtime files
+COPY --from=build /app/package*.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/server/package*.json ./server/
+COPY --from=build /app/server/node_modules ./server/node_modules
+COPY server ./server
+
+# Copy built client into server/public for static serving
+COPY --from=build /app/client/build ./server/public
 
 # Create unprivileged user
 RUN groupadd -r app && useradd -r -g app app && chown -R app:app /app
@@ -52,4 +73,5 @@ USER app
 
 ENV NODE_ENV=production
 
+EXPOSE 5050
 CMD ["node", "server/index.js"]

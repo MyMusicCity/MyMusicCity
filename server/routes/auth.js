@@ -121,9 +121,11 @@ router.post("/login", async (req, res) => {
 
     if (!user.emailVerified) return res.status(403).json({ error: "Email not verified. Check your inbox for a verification link." });
 
+    const secret = process.env.JWT_SECRET || (process.env.NODE_ENV === "test" ? "supersecretjwtkey" : null);
+    if (!secret) return res.status(500).json({ error: "Server misconfigured: JWT secret missing" });
     const token = jwt.sign(
       { id: user._id, email: user.email },
-      process.env.JWT_SECRET || "supersecretjwtkey",
+      secret,
       { expiresIn: "3h" }
     );
 

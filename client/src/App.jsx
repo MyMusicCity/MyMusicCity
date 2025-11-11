@@ -8,6 +8,7 @@ import Profile from "./pages/Profile";
 import ProfileView from "./pages/ProfileView";
 import RSVPs from "./pages/RSVPs";
 import Login from "./pages/Login"; 
+import VerifyEmail from "./pages/VerifyEmail";
 import { AuthContext } from "./AuthContext";
 
 export default function App() {
@@ -15,7 +16,7 @@ export default function App() {
   const location = useLocation();
 
   // Hide navbar on login or signup pages
-  const hideNavbar = ["/login", "/signup"].includes(location.pathname);
+  const hideNavbar = ["/login", "/signup", "/verify-email"].includes(location.pathname);
 
   return (
     <div className="app">
@@ -24,8 +25,9 @@ export default function App() {
 
       <div className="content">
         <Routes>
-          {/* Public route */}
+          {/* Public routes */}
           <Route path="/login" element={<Login />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
 
           {/* Private routes */}
           <Route path="/" element={token ? <Home /> : <Navigate to="/login" />} />

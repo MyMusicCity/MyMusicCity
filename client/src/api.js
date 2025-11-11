@@ -173,6 +173,22 @@ export async function resendVerification(email) {
   return payload;
 }
 
+export async function verifyEmail(token, email) {
+  if (!API_BASE) throw new Error("No API base URL configured");
+  const res = await fetchWithTimeout(`${API_BASE}/api/verify-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ token, email }),
+  });
+  let payload = {};
+  try {
+    payload = await res.json();
+  } catch (e) {}
+  if (!res.ok) throw new Error(payload?.error || `Verify failed: ${res.status}`);
+  return payload;
+}
+
 
 
 export async function loginUser(email, password) {
