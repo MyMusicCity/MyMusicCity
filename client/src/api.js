@@ -157,8 +157,6 @@ export async function signupUser(username, email, password, year, major) {
   return payload;
 }
 
-
-
 export async function loginUser(email, password) {
   // Use a timeout and include credentials. If the server returns an HTML page
   // (e.g. a login proxy or SSO page), parse will fail and we surface a helpful

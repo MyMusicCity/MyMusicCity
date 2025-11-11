@@ -9,6 +9,7 @@
     "seed": "node seed.js",
     "scrape": "node server/scraping/scrapeNashvilleScene.js",
     "scrape:all": "node server/scraping/scrapeAll.js",
+    "update-images": "node updateEventImages.js",
     "test": "jest",
     "test:client": "npm --prefix client test",
     "postinstall": "npm --prefix server install",

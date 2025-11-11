@@ -13,7 +13,7 @@ Sprint 1 – by 25 September
 Sprint 2 – by 21 October 
 - The big-ticket item here is implementing web scraping to gather the concert data
 - Progress on UX, including redirect links for maps and events created
-- Vanderbilt verification set up – using email, not SSO
+- Email verification set up for user accounts
 
 Sprint 3 – by 11 November 
 - UI design 
@@ -24,9 +24,9 @@ Final Product and Presentation – 2 December
 - We will have a video presentation prepared of a user navigating and making use of MyMusicCity, as well as perform a live demonstration 
 
 Team members:
-Emma Chang emma.j.chang@vanderbilt.edu
-Annette Ma annette.l.ma@vanderbilt.edu
-Jake Seals jake.d.seals@vanderbilt.edu
+Emma Chang emma.j.chang@example.com
+Annette Ma annette.l.ma@example.com
+Jake Seals jake.d.seals@example.com
 
 ## Scraper scheduling (every-other-night)
 
