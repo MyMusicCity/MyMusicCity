@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1762843011958" clover="3.2.0">
+  <project timestamp="1762843011959" name="All files">
+    <metrics statements="2" coveredstatements="2" conditionals="6" coveredconditionals="5" methods="1" coveredmethods="1" elements="9" coveredelements="8" complexity="0" loc="2" ncloc="2" packages="1" files="1" classes="1"/>
+    <file name="EventCard.jsx" path="/Users/baeliozdays/Library/Mobile Documents/com~apple~CloudDocs/2025-2026/CS 4278/MyMusicCity/client/src/components/EventCard.jsx">
+      <metrics statements="2" coveredstatements="2" conditionals="6" coveredconditionals="5" methods="1" coveredmethods="1"/>
+      <line num="6" count="1" type="cond" truecount="2" falsecount="0"/>
+      <line num="8" count="1" type="stmt"/>
+    </file>
+  </project>
+</coverage>
