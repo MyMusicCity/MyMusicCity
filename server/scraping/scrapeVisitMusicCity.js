@@ -4,6 +4,7 @@ const cheerio = require("cheerio");
 const puppeteer = require("puppeteer");
 const mongoose = require("../mongoose");
 const Event = require("../models/Event");
+const { getEventImage } = require("../utils/eventImages");
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 
 async function fetchWithAxios(url) {
