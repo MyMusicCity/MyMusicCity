@@ -48,8 +48,13 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=0
 
 # Install root dependencies (includes server via postinstall) then client deps
 RUN npm ci --omit=dev \
-    && npm --prefix client install --omit=dev \
-    && npm --prefix client run build
+    && npm --prefix client install --omit=dev
+
+# Copy client source files needed for build
+COPY client ./client
+
+# Build client
+RUN npm --prefix client run build
 
 # ---------------------------------------------------------------------------
 # Stage 2: Production image
