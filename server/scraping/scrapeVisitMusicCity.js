@@ -5,6 +5,7 @@ const puppeteer = require("puppeteer");
 const mongoose = require("../mongoose");
 const Event = require("../models/Event");
 const { getEventImage } = require("../utils/eventImages");
+const { launchBrowser } = require("../utils/puppeteerConfig");
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 
 async function fetchWithAxios(url) {
@@ -50,7 +51,7 @@ async function scrapeVisitMusicCity() {
 
     if (!html || events.length === 0) {
       console.log("No items found with Axios/Cheerio on VisitMusicCity; falling back to Puppeteer...");
-      browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+      browser = await launchBrowser();
       const page = await browser.newPage();
       await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
       try {
