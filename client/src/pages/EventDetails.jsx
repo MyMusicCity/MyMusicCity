@@ -25,12 +25,14 @@ export default function EventDetails() {
   const [attendees, setAttendees] = useState([]);
 
   /* ===========================
-        COMMENT SECTION
+        COMMENT STATE
   =========================== */
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState("");
 
-  // Load comments
+  /* ===========================
+        LOAD COMMENTS
+  =========================== */
   useEffect(() => {
     if (!event) return;
     const evId = event._id || event.id;
@@ -46,6 +48,9 @@ export default function EventDetails() {
     })();
   }, [event]);
 
+  /* ===========================
+        COMMENT SUBMIT
+  =========================== */
   const handleCommentSubmit = async () => {
     if (!user) {
       alert("Please log in to comment.");
@@ -56,8 +61,12 @@ export default function EventDetails() {
 
     try {
       const evId = event._id || event.id;
-      const newComment = await postComment(evId, commentText);
-      setComments((prev) => [...prev, newComment]);
+      await postComment(evId, commentText);
+
+      // Reload full tree
+      const updated = await getComments(evId);
+      setComments(updated);
+
       setCommentText("");
     } catch (err) {
       console.error(err);
@@ -65,11 +74,17 @@ export default function EventDetails() {
     }
   };
 
+  /* ===========================
+        DELETE COMMENT
+  =========================== */
   const handleDeleteComment = async (commentId) => {
     if (!user) return;
     try {
       await deleteComment(commentId);
-      setComments((prev) => prev.filter((c) => c._id !== commentId));
+
+      const evId = event._id || event.id;
+      const updated = await getComments(evId);
+      setComments(updated);
     } catch (err) {
       console.error(err);
       alert("Failed to delete comment");
@@ -77,9 +92,8 @@ export default function EventDetails() {
   };
 
   /* ===========================
-        LOAD EVENT + ATTENDEES
+          LOAD EVENT DATA
   =========================== */
-
   useEffect(() => {
     let mounted = true;
     if (!event) {
@@ -101,7 +115,9 @@ export default function EventDetails() {
     return () => (mounted = false);
   }, [id]);
 
-  // Load Attendees
+  /* ===========================
+          LOAD ATTENDEES
+  =========================== */
   useEffect(() => {
     let mounted = true;
     const evId = event?._id || event?.id || id;
@@ -120,7 +136,122 @@ export default function EventDetails() {
   }, [event && (event._id || event.id), id]);
 
   /* ===========================
-        RENDER LOGIC
+        RECURSIVE COMMENT COUNT
+  =========================== */
+  function countAllComments(list) {
+    let total = 0;
+    for (const c of list) {
+      total++;
+      if (c.replies?.length) {
+        total += countAllComments(c.replies);
+      }
+    }
+    return total;
+  }
+
+  const totalComments = countAllComments(comments);
+
+  /* ===========================
+        COMMENT COMPONENT
+  =========================== */
+  function CommentItem({ comment, user, onReply, onDelete }) {
+    const [showReply, setShowReply] = useState(false);
+    const [replyText, setReplyText] = useState("");
+
+    return (
+      <div style={{ marginLeft: comment.parent ? "1.5rem" : 0 }}>
+        <div
+          style={{
+            padding: "0.75rem",
+            border: "1px solid #eee",
+            borderRadius: "8px",
+            background: "#fafafa",
+            marginBottom: "0.5rem",
+          }}
+        >
+          <strong>{comment.user?.username || "Unknown"}</strong>
+          <p>{comment.text}</p>
+          <small>{new Date(comment.createdAt).toLocaleString()}</small>
+
+          {/* Reply */}
+          {user && (
+            <button
+              onClick={() => setShowReply(!showReply)}
+              style={{
+                marginLeft: "1rem",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "0.9rem",
+                color: "#0070f3",
+              }}
+            >
+              Reply
+            </button>
+          )}
+
+          {/* Delete */}
+          {user?.id === comment.user?._id && (
+            <button
+              onClick={() => onDelete(comment._id)}
+              style={{
+                marginLeft: "1rem",
+                color: "red",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              Delete
+            </button>
+          )}
+
+          {/* Reply Input */}
+          {showReply && (
+            <div style={{ marginTop: "0.5rem" }}>
+              <textarea
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                rows={2}
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  borderRadius: "6px",
+                  border: "1px solid #ccc",
+                }}
+                placeholder="Write a reply..."
+              />
+              <button
+                className="rsvp-btn"
+                onClick={() => {
+                  onReply(comment._id, replyText);
+                  setReplyText("");
+                  setShowReply(false);
+                }}
+                style={{ marginTop: "0.5rem" }}
+              >
+                Post Reply
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Render nested replies */}
+        {comment.replies?.map((child) => (
+          <CommentItem
+            key={child._id}
+            comment={child}
+            user={user}
+            onReply={onReply}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  /* ===========================
+        RENDER
   =========================== */
 
   if (loading) return <div style={{ padding: "2rem" }}>Loading...</div>;
@@ -135,107 +266,6 @@ export default function EventDetails() {
       </div>
     );
   }
-
-  function CommentItem({ comment, user, onReply, onDelete }) {
-  const [showReply, setShowReply] = useState(false);
-  const [replyText, setReplyText] = useState("");
-
-  return (
-    <div style={{ marginLeft: comment.parent ? "1.5rem" : 0 }}>
-      <div
-        style={{
-          padding: "0.75rem",
-          border: "1px solid #eee",
-          borderRadius: "8px",
-          background: "#fafafa",
-          marginBottom: "0.5rem",
-        }}
-      >
-        <strong>{comment.user?.username || "Unknown"}</strong>
-        <p>{comment.text}</p>
-        <small>{new Date(comment.createdAt).toLocaleString()}</small>
-
-        {/* Reply button */}
-        {user && (
-          <button
-            onClick={() => setShowReply(!showReply)}
-            style={{
-              marginLeft: "1rem",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "0.9rem",
-              color: "#0070f3",
-            }}
-          >
-            Reply
-          </button>
-        )}
-
-        {/* Delete button */}
-        {user?.id === comment.user?._id && (
-          <button
-            onClick={() => onDelete(comment._id)}
-            style={{
-              marginLeft: "1rem",
-              color: "red",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            Delete
-          </button>
-        )}
-
-        {/* Reply input box */}
-        {showReply && (
-          <div style={{ marginTop: "0.5rem" }}>
-            <textarea
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              rows={2}
-              style={{
-                width: "100%",
-                padding: "0.5rem",
-                borderRadius: "6px",
-                border: "1px solid #ccc",
-              }}
-              placeholder="Write a reply..."
-            />
-            <button
-              className="rsvp-btn"
-              onClick={() => {
-                onReply(comment._id, replyText);
-                setReplyText("");
-                setShowReply(false);
-              }}
-              style={{ marginTop: "0.5rem" }}
-            >
-              Post Reply
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Render replies recursively */}
-      {comment.replies?.map((child) => (
-        <CommentItem
-          key={child._id}
-          comment={child}
-          user={user}
-          onReply={onReply}
-          onDelete={onDelete}
-        />
-      ))}
-    </div>
-  );
-}
-
-
-  /* ===========================
-        RETURN JSX
-  =========================== */
 
   return (
     <div className="event-details">
@@ -255,6 +285,7 @@ export default function EventDetails() {
         ======================== */}
         <div className="attendees">
           <h3>Attendees</h3>
+
           {attendees.length > 0 ? (
             <div className="attendee-list">
               {attendees.map((r) => {
@@ -262,7 +293,7 @@ export default function EventDetails() {
                 const uid = u._id || u.id;
                 return (
                   <Link
-                    key={uid || Math.random()}
+                    key={uid}
                     to={`/profile/${uid}`}
                     className="attendee-link"
                   >
@@ -279,93 +310,13 @@ export default function EventDetails() {
           )}
         </div>
 
-        <p className="event-description">
-          {`Join us for ${event.title}, featuring incredible music and a vibrant Nashville crowd!`}
-        </p>
-
-        {/* ========================
-              RSVP LOGIC
-        ======================== */}
-        <div style={{ marginTop: "1rem" }}>
-          {(() => {
-            const currentUserId = user?.id || user?._id;
-            const isAttending = attendees.some((r) => {
-              const uid = r.user?._id || r.user?.id;
-              return uid && currentUserId && String(uid) === String(currentUserId);
-            });
-
-            if (isAttending) {
-              return (
-                <button
-                  className="rsvp-btn"
-                  onClick={async () => {
-                    if (!user) {
-                      alert("Please log in to cancel RSVP.");
-                      navigate("/login");
-                      return;
-                    }
-                    const evId = event._id || event.id || id;
-                    try {
-                      await deleteRsvp(evId);
-                      const currentUserId2 = user?.id || user?._id;
-                      setAttendees((prev) =>
-                        prev.filter((r) => {
-                          const uid = r.user?._id || r.user?.id;
-                          return !(uid && String(uid) === String(currentUserId2));
-                        })
-                      );
-                      alert("RSVP cancelled");
-                    } catch (err) {
-                      console.error("Cancel RSVP failed", err);
-                      alert(err.message || "Failed to cancel RSVP");
-                    }
-                  }}
-                >
-                  Cancel RSVP
-                </button>
-              );
-            }
-
-            return (
-              <button
-                className="rsvp-btn"
-                onClick={async () => {
-                  if (!user) {
-                    alert("Please log in to RSVP.");
-                    navigate("/login");
-                    return;
-                  }
-
-                  const eventIdStr = event._id || event.id;
-
-                  if (!/^[a-fA-F0-9]{24}$/.test(eventIdStr)) {
-                    alert("This event cannot be RSVPed to.");
-                    return;
-                  }
-
-                  try {
-                    const payload = await postRsvp(eventIdStr);
-                    alert("RSVP successful!");
-                    console.log("RSVP created:", payload);
-                  } catch (err) {
-                    console.error("RSVP error:", err);
-                    alert(err.message || "Failed to RSVP");
-                  }
-                }}
-              >
-                RSVP
-              </button>
-            );
-          })()}
-        </div>
-
         {/* ========================
               COMMENTS SECTION
         ======================== */}
         <div className="comments-section" style={{ marginTop: "2rem" }}>
-          <h3>Comments ({comments.length})</h3>
+          <h3>Comments ({totalComments})</h3>
 
-          {/* Comment input */}
+          {/* Comment Input */}
           <div className="comment-input" style={{ marginTop: "1rem" }}>
             <textarea
               placeholder="Write a comment..."
@@ -377,7 +328,6 @@ export default function EventDetails() {
                 padding: "0.75rem",
                 borderRadius: "8px",
                 border: "1px solid #ccc",
-                resize: "vertical",
               }}
             />
             <button
@@ -389,29 +339,27 @@ export default function EventDetails() {
             </button>
           </div>
 
-          {/* Comments */}
+          {/* Comment List */}
           <div className="comments-list" style={{ marginTop: "1.5rem" }}>
             {comments.length === 0 && <p>No comments yet.</p>}
 
             {comments.map((comment) => (
-  <CommentItem
-    key={comment._id}
-    comment={comment}
-    user={user}
-    onReply={async (parentId, text) => {
-      if (!text.trim()) return;
-      const evId = event._id || event.id;
+              <CommentItem
+                key={comment._id}
+                comment={comment}
+                user={user}
+                onReply={async (parentId, text) => {
+                  if (!text.trim()) return;
+                  const evId = event._id || event.id;
 
-      const reply = await postReply(parentId, evId, text);
+                  await postReply(parentId, evId, text);
 
-      // Reload comments after posting
-      const updated = await getComments(evId);
-      setComments(updated);
-    }}
-    onDelete={handleDeleteComment}
-  />
-))}
-
+                  const updated = await getComments(evId);
+                  setComments(updated);
+                }}
+                onDelete={handleDeleteComment}
+              />
+            ))}
           </div>
         </div>
       </div>
