@@ -19,7 +19,7 @@ const app = express();
 
 /* -------------------------- CORS Configuration -------------------------- */
 const ALLOWLIST = [
-  process.env.CORS_ORIGIN, 
+  process.env.CORS_ORIGIN,
   "http://localhost:3000",
 ];
 
@@ -120,7 +120,7 @@ app.get("/api/events", async (_req, res) => {
       ...ev,
       date: ev.date ? new Date(ev.date).toISOString() : null,
       rsvpCount: rsvpMap[String(ev._id)] || 0,
-      commentCount: commentMap[String(ev._id)] || 0, // ⭐ NEW FIELD
+      commentCount: commentMap[String(ev._id)] || 0,
     }));
 
     res.json(events);
@@ -131,36 +131,45 @@ app.get("/api/events", async (_req, res) => {
   }
 });
 
-// Get single event
+/* ==================================================
+   ⭐ FIXED: SINGLE EVENT ENDPOINT WITH POPULATED RSVPS
+=================================================== */
 app.get("/api/events/:id", async (req, res) => {
   try {
-    if (!require("mongoose").Types.ObjectId.isValid(req.params.id))
+    const mongoose = require("mongoose");
+    if (!mongoose.Types.ObjectId.isValid(req.params.id))
       return res.status(400).json({ error: "Invalid event id" });
 
+    // ⭐ Populate RSVP users so EventDetails can detect "is attending"
     let event = await Event.findById(req.params.id)
       .populate("createdBy", "username email")
       .lean()
       .exec();
 
-    if (!event) return res.status(404).json({ error: "Event not found" });
+    if (!event)
+      return res.status(404).json({ error: "Event not found" });
 
-    // Add counts for a single event so clients receive consistent data when
-    // viewing an individual event page (rsvp/comment counts are provided
-    // for the events list above, but not the single-event endpoint yet).
-    const rsvpCount = await Rsvp.countDocuments({ event: event._id });
+    // ⭐ Fetch RSVP documents with user info
+    const rsvps = await Rsvp.find({ event: event._id })
+      .populate("user", "username email")
+      .lean()
+      .exec();
+
+    // ⭐ Count comments
     const commentCount = await Comment.countDocuments({ event: event._id });
 
     event = {
       ...event,
       date: event.date ? new Date(event.date).toISOString() : null,
-      rsvpCount: rsvpCount || 0,
+      attendees: rsvps,          // ⭐ make attendees available to frontend
+      rsvpCount: rsvps.length,   // ⭐ use actual populated rsvps
       commentCount: commentCount || 0,
     };
 
     res.json(event);
 
   } catch (err) {
-    console.error(err);
+    console.error("Single-event fetch failed:", err);
     res.status(500).json({ error: "Failed to fetch event" });
   }
 });

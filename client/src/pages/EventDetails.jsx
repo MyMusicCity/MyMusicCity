@@ -285,8 +285,75 @@ export default function EventDetails() {
         <p className="event-location">📍 {event.location}</p>
 
         {/* ========================
-              ATTENDEES
+              ATTENDEES & RSVP
         ======================== */}
+        <div style={{ marginTop: "1rem" }}>
+          {(() => {
+            // Decide whether current user is attending
+            const currentUserId = user?.id || user?._id;
+            const isAttending = attendees.some((r) => {
+              const uid = r.user?._id || r.user?.id;
+              return uid && currentUserId && String(uid) === String(currentUserId);
+            });
+
+            const evId = event._id || event.id || id;
+
+            if (isAttending) {
+              return (
+                <button
+                  className="rsvp-btn"
+                  onClick={async () => {
+                    if (!user) {
+                      alert("Please log in to cancel RSVP.");
+                      navigate("/login");
+                      return;
+                    }
+
+                    try {
+                      await deleteRsvp(evId);
+                      // Refresh attendees and counts
+                      const list = await getEventRsvps(evId);
+                      setAttendees(list || []);
+                      setEvent((prev) => ({ ...prev, rsvpCount: list?.length || 0 }));
+                      alert("RSVP cancelled");
+                    } catch (err) {
+                      console.error("Cancel RSVP failed", err);
+                      alert(err.message || "Failed to cancel RSVP");
+                    }
+                  }}
+                >
+                  Cancel RSVP
+                </button>
+              );
+            }
+
+            return (
+              <button
+                className="rsvp-btn"
+                onClick={async () => {
+                  if (!user) {
+                    alert("Please log in to RSVP.");
+                    navigate("/login");
+                    return;
+                  }
+
+                  try {
+                    await postRsvp(evId);
+                    alert("RSVP successful!");
+                    const list = await getEventRsvps(evId);
+                    setAttendees(list || []);
+                    setEvent((prev) => ({ ...prev, rsvpCount: list?.length || 0 }));
+                  } catch (err) {
+                    console.error("RSVP error:", err);
+                    alert(err.message || "Failed to RSVP");
+                  }
+                }}
+              >
+                RSVP
+              </button>
+            );
+          })()}
+        </div>
         <div className="attendees">
           <h3>Attendees</h3>
 
