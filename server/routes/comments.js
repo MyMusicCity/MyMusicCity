@@ -4,19 +4,43 @@ const Comment = require("../models/Comment");
 const Event = require("../models/Event");
 const auth = require("../middleware/auth");
 
-// GET comments for an event
+// Build nested comment tree
+function buildTree(comments) {
+  const map = {};
+  const roots = [];
+
+  comments.forEach((c) => {
+    map[c._id] = { ...c.toObject(), replies: [] };
+  });
+
+  comments.forEach((c) => {
+    const parentId = c.parent;
+    if (parentId) {
+      map[parentId].replies.push(map[c._id]);
+    } else {
+      roots.push(map[c._id]);
+    }
+  });
+
+  return roots;
+}
+
+// GET nested comments for an event
 router.get("/comments/:eventId", async (req, res) => {
   try {
-    const comments = await Comment.find({ event: req.params.eventId })
+    const flat = await Comment.find({ event: req.params.eventId })
       .populate("user", "username email")
       .sort({ createdAt: 1 });
 
-    res.json(comments);
+    const nested = buildTree(flat);
+
+    res.json(nested);
   } catch (err) {
     console.error("Get comments error:", err);
     res.status(500).json({ error: "Failed to fetch comments" });
   }
 });
+
 
 // POST a new comment
 router.post("/comments", auth, async (req, res) => {
@@ -44,6 +68,35 @@ router.post("/comments", auth, async (req, res) => {
     res.status(500).json({ error: "Failed to create comment" });
   }
 });
+
+// POST a reply to a comment
+router.post("/comments/:id/reply", auth, async (req, res) => {
+  try {
+    const parentId = req.params.id;
+    const { eventId, text } = req.body;
+
+    if (!text) return res.status(400).json({ error: "Text required" });
+
+    const parentComment = await Comment.findById(parentId);
+    if (!parentComment)
+      return res.status(404).json({ error: "Parent comment not found" });
+
+    const reply = await Comment.create({
+      event: eventId,
+      user: req.user.id,
+      text,
+      parent: parentId,
+    });
+
+    await reply.populate("user", "username email");
+
+    res.status(201).json(reply);
+  } catch (err) {
+    console.error("Reply error:", err);
+    res.status(500).json({ error: "Failed to create reply" });
+  }
+});
+
 
 // DELETE a comment
 router.delete("/comments/:id", auth, async (req, res) => {

@@ -220,4 +220,18 @@ export async function deleteComment(commentId) {
   return res.json();
 }
 
+export async function postReply(commentId, eventId, text) {
+  const res = await fetch(`${API_BASE}/comments/${commentId}/reply`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ eventId, text }),
+  });
+
+  if (!res.ok) throw new Error("Failed to reply");
+
+  return res.json();
+}
+
+
 
