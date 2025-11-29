@@ -12,6 +12,8 @@ const authRoutes = require("./routes/auth");
 const updateImagesRoutes = require("./routes/updateImages");
 const auth = require("./middleware/auth");
 const { body, param, validationResult } = require("express-validator");
+const commentRoutes = require("./routes/comments");
+
 
 const app = express();
 
@@ -57,6 +59,9 @@ app.use("/api", authRoutes); // mounts /api/signup and /api/login
 
 // ===== Admin Routes =====
 app.use("/api/admin", updateImagesRoutes); // mounts /api/admin/update-all-images
+
+// ===== Comment Routes =====
+app.use("/api", commentRoutes);
 
 // ===== Event Routes =====
 

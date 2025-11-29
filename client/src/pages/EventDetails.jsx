@@ -1,13 +1,21 @@
 import React, { useEffect, useState, useContext } from "react";
 import { useLocation, useNavigate, useParams, Link } from "react-router-dom";
 import "../styles.css";
-import { getEventById, postRsvp, getEventRsvps, deleteRsvp } from "../api";
+import {
+  getEventById,
+  postRsvp,
+  getEventRsvps,
+  deleteRsvp,
+  getComments,
+  postComment,
+  deleteComment,
+} from "../api";
 import { AuthContext } from "../AuthContext";
 
 export default function EventDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { state } = useLocation(); // Grab event data passed from Home
+  const { state } = useLocation();
 
   const [event, setEvent] = useState(state?.event || null);
   const [loading, setLoading] = useState(!state?.event);
@@ -15,10 +23,65 @@ export default function EventDetails() {
   const { user } = useContext(AuthContext);
   const [attendees, setAttendees] = useState([]);
 
+  /* ===========================
+        COMMENT SECTION
+  =========================== */
+  const [comments, setComments] = useState([]);
+  const [commentText, setCommentText] = useState("");
+
+  // Load comments
+  useEffect(() => {
+    if (!event) return;
+    const evId = event._id || event.id;
+    if (!evId) return;
+
+    (async () => {
+      try {
+        const list = await getComments(evId);
+        setComments(list || []);
+      } catch (err) {
+        console.error("Failed to load comments", err);
+      }
+    })();
+  }, [event]);
+
+  const handleCommentSubmit = async () => {
+    if (!user) {
+      alert("Please log in to comment.");
+      navigate("/login");
+      return;
+    }
+    if (!commentText.trim()) return;
+
+    try {
+      const evId = event._id || event.id;
+      const newComment = await postComment(evId, commentText);
+      setComments((prev) => [...prev, newComment]);
+      setCommentText("");
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Failed to post comment");
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    if (!user) return;
+    try {
+      await deleteComment(commentId);
+      setComments((prev) => prev.filter((c) => c._id !== commentId));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete comment");
+    }
+  };
+
+  /* ===========================
+        LOAD EVENT + ATTENDEES
+  =========================== */
+
   useEffect(() => {
     let mounted = true;
     if (!event) {
-      // try fetching from API by id
       (async () => {
         try {
           const ev = await getEventById(id);
@@ -37,11 +100,12 @@ export default function EventDetails() {
     return () => (mounted = false);
   }, [id]);
 
-  // Fetch attendees for this event
+  // Load Attendees
   useEffect(() => {
     let mounted = true;
     const evId = event?._id || event?.id || id;
     if (!evId) return;
+
     (async () => {
       try {
         const list = await getEventRsvps(evId);
@@ -50,8 +114,13 @@ export default function EventDetails() {
         console.error("Failed to load attendees", err);
       }
     })();
+
     return () => (mounted = false);
   }, [event && (event._id || event.id), id]);
+
+  /* ===========================
+        RENDER LOGIC
+  =========================== */
 
   if (loading) return <div style={{ padding: "2rem" }}>Loading...</div>;
 
@@ -59,12 +128,16 @@ export default function EventDetails() {
     return (
       <div style={{ padding: "2rem" }}>
         <h2>{error || "Event not found"}</h2>
-        <button className="back-btn" onClick={() => navigate("/")}> 
+        <button className="back-btn" onClick={() => navigate("/")}>
           ← Back to Home
         </button>
       </div>
     );
   }
+
+  /* ===========================
+        RETURN JSX
+  =========================== */
 
   return (
     <div className="event-details">
@@ -78,6 +151,10 @@ export default function EventDetails() {
         <h1>{event.title}</h1>
         <p className="event-date">{event.date}</p>
         <p className="event-location">📍 {event.location}</p>
+
+        {/* ========================
+              ATTENDEES
+        ======================== */}
         <div className="attendees">
           <h3>Attendees</h3>
           {attendees.length > 0 ? (
@@ -86,8 +163,14 @@ export default function EventDetails() {
                 const u = r.user || {};
                 const uid = u._id || u.id;
                 return (
-                  <Link key={uid || Math.random()} to={`/profile/${uid}`} className="attendee-link">
-                    <div className="attendee-avatar">{u.username ? u.username[0].toUpperCase() : "?"}</div>
+                  <Link
+                    key={uid || Math.random()}
+                    to={`/profile/${uid}`}
+                    className="attendee-link"
+                  >
+                    <div className="attendee-avatar">
+                      {u.username ? u.username[0].toUpperCase() : "?"}
+                    </div>
                     <div className="attendee-name">{u.username || "Unknown"}</div>
                   </Link>
                 );
@@ -97,16 +180,19 @@ export default function EventDetails() {
             <p>No attendees yet.</p>
           )}
         </div>
+
         <p className="event-description">
           {`Join us for ${event.title}, featuring incredible music and a vibrant Nashville crowd!`}
         </p>
+
+        {/* ========================
+              RSVP LOGIC
+        ======================== */}
         <div style={{ marginTop: "1rem" }}>
-          {/* Show Cancel if user already attending, otherwise show RSVP */}
           {(() => {
             const currentUserId = user?.id || user?._id;
             const isAttending = attendees.some((r) => {
-              const u = r.user || {};
-              const uid = u._id || u.id;
+              const uid = r.user?._id || r.user?.id;
               return uid && currentUserId && String(uid) === String(currentUserId);
             });
 
@@ -115,7 +201,6 @@ export default function EventDetails() {
                 <button
                   className="rsvp-btn"
                   onClick={async () => {
-                    // ensure logged in
                     if (!user) {
                       alert("Please log in to cancel RSVP.");
                       navigate("/login");
@@ -124,12 +209,13 @@ export default function EventDetails() {
                     const evId = event._id || event.id || id;
                     try {
                       await deleteRsvp(evId);
-                      // remove current user's rsvp from attendees locally
                       const currentUserId2 = user?.id || user?._id;
-                      setAttendees((prev) => prev.filter((r) => {
-                        const uid = (r.user && (r.user._id || r.user.id)) || null;
-                        return !(uid && String(uid) === String(currentUserId2));
-                      }));
+                      setAttendees((prev) =>
+                        prev.filter((r) => {
+                          const uid = r.user?._id || r.user?.id;
+                          return !(uid && String(uid) === String(currentUserId2));
+                        })
+                      );
                       alert("RSVP cancelled");
                     } catch (err) {
                       console.error("Cancel RSVP failed", err);
@@ -146,53 +232,107 @@ export default function EventDetails() {
               <button
                 className="rsvp-btn"
                 onClick={async () => {
-                  // Ensure user is logged in (server derives user from Authorization JWT)
-                  const userIdRaw = user?.id || user?._id;
-                  if (!user || !userIdRaw) {
+                  if (!user) {
                     alert("Please log in to RSVP.");
                     navigate("/login");
                     return;
                   }
 
-            // Normalize event id and user id to strings that look like ObjectId
-            const getIdStr = (v) => {
-              if (!v) return null;
-              if (typeof v === "string") return v;
-              if (v && typeof v === "object") {
-                // Mongoose sometimes returns {_id: { $oid: '...' }} in some serializers
-                if (v.$oid) return v.$oid;
-                if (v.toString) return v.toString();
-              }
-              return String(v);
-            };
+                  const eventIdStr = event._id || event.id;
 
-            const eventIdStr = getIdStr(event._id || event.id);
-            const userIdStr = getIdStr(userIdRaw);
+                  if (!/^[a-fA-F0-9]{24}$/.test(eventIdStr)) {
+                    alert("This event cannot be RSVPed to.");
+                    return;
+                  }
 
-            // Basic ObjectId sanity: 24 hex characters
-            const isLikelyObjectId = (s) => typeof s === "string" && /^[a-fA-F0-9]{24}$/.test(s);
-
-            if (!isLikelyObjectId(eventIdStr)) {
-              alert("This event cannot be RSVPed to (not a server-backed event).");
-              return;
-            }
-            try {
-              console.log("Posting RSVP", { eventId: eventIdStr });
-              const payload = await postRsvp(eventIdStr);
-              // server returns populated RSVP; show simple confirmation
-              alert("RSVP successful!");
-              console.log("RSVP created:", payload);
-            } catch (err) {
-              console.error("RSVP error:", err);
-              // api throws Error with server message when available
-              alert(err.message || JSON.stringify(err) || "Failed to RSVP");
-            }
+                  try {
+                    const payload = await postRsvp(eventIdStr);
+                    alert("RSVP successful!");
+                    console.log("RSVP created:", payload);
+                  } catch (err) {
+                    console.error("RSVP error:", err);
+                    alert(err.message || "Failed to RSVP");
+                  }
                 }}
               >
                 RSVP
               </button>
             );
           })()}
+        </div>
+
+        {/* ========================
+              COMMENTS SECTION
+        ======================== */}
+        <div className="comments-section" style={{ marginTop: "2rem" }}>
+          <h3>Comments ({comments.length})</h3>
+
+          {/* Comment input */}
+          <div className="comment-input" style={{ marginTop: "1rem" }}>
+            <textarea
+              placeholder="Write a comment..."
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              rows={3}
+              style={{
+                width: "100%",
+                padding: "0.75rem",
+                borderRadius: "8px",
+                border: "1px solid #ccc",
+                resize: "vertical",
+              }}
+            />
+            <button
+              className="rsvp-btn"
+              onClick={handleCommentSubmit}
+              style={{ marginTop: "0.5rem" }}
+            >
+              Post Comment
+            </button>
+          </div>
+
+          {/* Comments */}
+          <div className="comments-list" style={{ marginTop: "1.5rem" }}>
+            {comments.length === 0 && <p>No comments yet.</p>}
+
+            {comments.map((comment) => (
+              <div
+                key={comment._id}
+                className="comment-card"
+                style={{
+                  padding: "0.75rem",
+                  border: "1px solid #eee",
+                  borderRadius: "8px",
+                  marginBottom: "0.75rem",
+                  background: "#fafafa",
+                }}
+              >
+                <strong>{comment.user?.username || "Unknown"}</strong>
+                <p style={{ margin: "0.5rem 0" }}>{comment.text}</p>
+                <small style={{ color: "#777" }}>
+                  {new Date(comment.createdAt).toLocaleString()}
+                </small>
+
+                {user &&
+                  comment.user &&
+                  String(comment.user._id) === String(user.id) && (
+                    <button
+                      onClick={() => handleDeleteComment(comment._id)}
+                      style={{
+                        marginLeft: "1rem",
+                        color: "red",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      Delete
+                    </button>
+                  )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
