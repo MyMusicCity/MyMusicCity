@@ -67,6 +67,9 @@ export default function EventDetails() {
       const updated = await getComments(evId);
       setComments(updated);
 
+      // keep the event object in sync with the new comment total
+      setEvent((prev) => ({ ...prev, commentCount: countAllComments(updated) }));
+
       setCommentText("");
     } catch (err) {
       console.error(err);
@@ -85,6 +88,7 @@ export default function EventDetails() {
       const evId = event._id || event.id;
       const updated = await getComments(evId);
       setComments(updated);
+      setEvent((prev) => ({ ...prev, commentCount: countAllComments(updated) }));
     } catch (err) {
       console.error(err);
       alert("Failed to delete comment");
@@ -356,6 +360,7 @@ export default function EventDetails() {
 
                   const updated = await getComments(evId);
                   setComments(updated);
+                  setEvent((prev) => ({ ...prev, commentCount: countAllComments(updated) }));
                 }}
                 onDelete={handleDeleteComment}
               />

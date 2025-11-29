@@ -144,9 +144,17 @@ app.get("/api/events/:id", async (req, res) => {
 
     if (!event) return res.status(404).json({ error: "Event not found" });
 
+    // Add counts for a single event so clients receive consistent data when
+    // viewing an individual event page (rsvp/comment counts are provided
+    // for the events list above, but not the single-event endpoint yet).
+    const rsvpCount = await Rsvp.countDocuments({ event: event._id });
+    const commentCount = await Comment.countDocuments({ event: event._id });
+
     event = {
       ...event,
       date: event.date ? new Date(event.date).toISOString() : null,
+      rsvpCount: rsvpCount || 0,
+      commentCount: commentCount || 0,
     };
 
     res.json(event);

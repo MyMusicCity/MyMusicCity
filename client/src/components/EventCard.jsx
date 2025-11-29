@@ -1,48 +1,81 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { FaUserFriends } from "react-icons/fa";
+import { FaRegCommentDots } from "react-icons/fa";
 
 export default function EventCard({ event }) {
-  // Use event._id when available (server objects) or fallback to event.id for mocks
-  const id = event._id || event.id;
+  if (!event) return null;
 
-  // Use multiple fallbacks for image reliability
-  const getImageSrc = () => {
-    if (event.image) return event.image;
-    return `https://picsum.photos/400/240?random=${id || Math.floor(Math.random() * 100)}`;
-  };
+  // Server now returns rsvpCount; fall back to older shapes for backward compat.
+  const attendeeCount =
+    event.rsvpCount ||
+    event._attendeeCount ||
+    (Array.isArray(event.rsvps) ? event.rsvps.length : 0);
+
+  // Server returns commentCount; keep backward compatibility with older shapes
+  const commentCount =
+    event.commentCount ||
+    event._commentCount ||
+    (Array.isArray(event.comments)
+      ? event.comments.reduce(
+          (sum, c) => sum + 1 + (Array.isArray(c.replies) ? c.replies.length : 0),
+          0
+        )
+      : 0);
 
   return (
-    <Link to={`/event/${id}`} state={{ event }} className="event-card">
+    <Link
+      to={`/event/${event._id || event.id}`}
+      state={{ event }}
+      className="event-card"
+    >
+      {/* IMAGE */}
       <img
-        src={getImageSrc()}
+        src={
+          event.image ||
+          `https://picsum.photos/400/240?random=${event._id || event.id}`
+        }
         alt={event.title}
-        onError={(e) => {
-          e.target.src =
-            "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI0MCIgdmlld0JveD0iMCAwIDQwMCAyNDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjQwMCIgaGVpZ2h0PSIyNDAiIGZpbGw9IiNGM0Y0RjYiLz48cGF0aCBkPSJNMjAwIDEzNC41TDE4NS41IDEyMEwyMDAgMTA1LjVMMjE0LjUgMTIwTDIwMCAxMzQuNVoiIGZpbGw9IiM5NEEzQjgiLz48L3N2Zz4=";
-        }}
+        className="event-img"
       />
 
       <div className="event-info">
-        <h3>{event.title}</h3>
-        <p>{event.location}</p>
+        <h4>{event.title}</h4>
+        <p className="location">{event.location}</p>
 
-        <p className="date">
-          {event.date ? new Date(event.date).toLocaleDateString() : ""}
-        </p>
-
-        {/* ⭐ META INFO: RSVP and Comment Counts */}
+        {/* ============================
+             DATE + ICONS ROW
+        ============================ */}
         <div
-          className="event-meta"
           style={{
-            marginTop: "0.5rem",
-            fontSize: "0.9rem",
-            color: "#555",
             display: "flex",
-            gap: "1rem",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginTop: "8px",
           }}
         >
-          <span>👥 {event.rsvpCount ?? 0}</span>
-          <span>💬 {event.commentCount ?? 0}</span>
+          {/* DATE (left) */}
+          <p className="date" style={{ margin: 0 }}>
+            {event.date}
+          </p>
+
+          {/* ICONS (right) */}
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              alignItems: "center",
+              opacity: 0.9,
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <FaUserFriends size={14} /> {attendeeCount}
+            </span>
+
+            <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <FaRegCommentDots size={14} /> {commentCount}
+            </span>
+          </div>
         </div>
       </div>
     </Link>
