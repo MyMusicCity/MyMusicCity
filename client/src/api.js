@@ -57,7 +57,8 @@ export async function getEventById(id) {
 export async function postRsvp(eventId, status = "going") {
   if (!API_BASE) throw new Error("No API base URL configured");
   // Prefer Authorization header with JWT when available (AuthContext stores token in localStorage)
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  // Follow same approach as other client API helpers (direct localStorage access).
+  const token = localStorage.getItem("token");
   const headers = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -221,16 +222,29 @@ export async function deleteComment(commentId) {
 }
 
 export async function postReply(commentId, eventId, text) {
-  const res = await fetch(`${API_BASE}/comments/${commentId}/reply`, {
+  // Keep URL consistent with other API endpoints (mounted under /api)
+  // and include the Authorization header so auth middleware can validate the user.
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}/api/comments/${commentId}/reply`, {
     method: "POST",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ eventId, text }),
   });
 
-  if (!res.ok) throw new Error("Failed to reply");
+  let payload = {};
+  try {
+    payload = await res.json();
+  } catch (e) {
+    if (!res.ok) throw new Error(`Reply failed: status ${res.status}`);
+  }
 
-  return res.json();
+  if (!res.ok) throw new Error(payload?.error || payload?.message || "Failed to reply");
+
+  return payload;
 }
 
 
