@@ -9,6 +9,7 @@ import {
   getComments,
   postComment,
   deleteComment,
+  postReply,
 } from "../api";
 import { AuthContext } from "../AuthContext";
 
@@ -134,6 +135,103 @@ export default function EventDetails() {
       </div>
     );
   }
+
+  function CommentItem({ comment, user, onReply, onDelete }) {
+  const [showReply, setShowReply] = useState(false);
+  const [replyText, setReplyText] = useState("");
+
+  return (
+    <div style={{ marginLeft: comment.parent ? "1.5rem" : 0 }}>
+      <div
+        style={{
+          padding: "0.75rem",
+          border: "1px solid #eee",
+          borderRadius: "8px",
+          background: "#fafafa",
+          marginBottom: "0.5rem",
+        }}
+      >
+        <strong>{comment.user?.username || "Unknown"}</strong>
+        <p>{comment.text}</p>
+        <small>{new Date(comment.createdAt).toLocaleString()}</small>
+
+        {/* Reply button */}
+        {user && (
+          <button
+            onClick={() => setShowReply(!showReply)}
+            style={{
+              marginLeft: "1rem",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: "0.9rem",
+              color: "#0070f3",
+            }}
+          >
+            Reply
+          </button>
+        )}
+
+        {/* Delete button */}
+        {user?.id === comment.user?._id && (
+          <button
+            onClick={() => onDelete(comment._id)}
+            style={{
+              marginLeft: "1rem",
+              color: "red",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            Delete
+          </button>
+        )}
+
+        {/* Reply input box */}
+        {showReply && (
+          <div style={{ marginTop: "0.5rem" }}>
+            <textarea
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              rows={2}
+              style={{
+                width: "100%",
+                padding: "0.5rem",
+                borderRadius: "6px",
+                border: "1px solid #ccc",
+              }}
+              placeholder="Write a reply..."
+            />
+            <button
+              className="rsvp-btn"
+              onClick={() => {
+                onReply(comment._id, replyText);
+                setReplyText("");
+                setShowReply(false);
+              }}
+              style={{ marginTop: "0.5rem" }}
+            >
+              Post Reply
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Render replies recursively */}
+      {comment.replies?.map((child) => (
+        <CommentItem
+          key={child._id}
+          comment={child}
+          user={user}
+          onReply={onReply}
+          onDelete={onDelete}
+        />
+      ))}
+    </div>
+  );
+}
+
 
   /* ===========================
         RETURN JSX
@@ -296,42 +394,24 @@ export default function EventDetails() {
             {comments.length === 0 && <p>No comments yet.</p>}
 
             {comments.map((comment) => (
-              <div
-                key={comment._id}
-                className="comment-card"
-                style={{
-                  padding: "0.75rem",
-                  border: "1px solid #eee",
-                  borderRadius: "8px",
-                  marginBottom: "0.75rem",
-                  background: "#fafafa",
-                }}
-              >
-                <strong>{comment.user?.username || "Unknown"}</strong>
-                <p style={{ margin: "0.5rem 0" }}>{comment.text}</p>
-                <small style={{ color: "#777" }}>
-                  {new Date(comment.createdAt).toLocaleString()}
-                </small>
+  <CommentItem
+    key={comment._id}
+    comment={comment}
+    user={user}
+    onReply={async (parentId, text) => {
+      if (!text.trim()) return;
+      const evId = event._id || event.id;
 
-                {user &&
-                  comment.user &&
-                  String(comment.user._id) === String(user.id) && (
-                    <button
-                      onClick={() => handleDeleteComment(comment._id)}
-                      style={{
-                        marginLeft: "1rem",
-                        color: "red",
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        fontSize: "0.9rem",
-                      }}
-                    >
-                      Delete
-                    </button>
-                  )}
-              </div>
-            ))}
+      const reply = await postReply(parentId, evId, text);
+
+      // Reload comments after posting
+      const updated = await getComments(evId);
+      setComments(updated);
+    }}
+    onDelete={handleDeleteComment}
+  />
+))}
+
           </div>
         </div>
       </div>
