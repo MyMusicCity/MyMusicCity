@@ -188,3 +188,36 @@ export async function loginUser(email, password) {
   return payload || {};
 }
 
+// --- COMMENTS API ---
+
+export async function getComments(eventId) {
+  const res = await fetch(`${API_BASE}/api/comments/${eventId}`);
+  if (!res.ok) throw new Error("Failed to load comments");
+  return res.json();
+}
+
+export async function postComment(eventId, text) {
+  const res = await fetch(`${API_BASE}/api/comments`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+    },
+    body: JSON.stringify({ eventId, text }),
+  });
+  if (!res.ok) throw new Error("Failed to post comment");
+  return res.json();
+}
+
+export async function deleteComment(commentId) {
+  const res = await fetch(`${API_BASE}/api/comments/${commentId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+    }
+  });
+  if (!res.ok) throw new Error("Failed to delete comment");
+  return res.json();
+}
+
+
