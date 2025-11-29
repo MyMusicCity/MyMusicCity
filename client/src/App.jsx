@@ -3,7 +3,6 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import EventDetails from "./pages/EventDetails";
-import Messages from "./pages/Messages";
 import Profile from "./pages/Profile";
 import ProfileView from "./pages/ProfileView";
 import RSVPs from "./pages/RSVPs";
@@ -30,7 +29,6 @@ export default function App() {
           {/* Private routes */}
           <Route path="/" element={token ? <Home /> : <Navigate to="/login" />} />
           <Route path="/event/:id" element={token ? <EventDetails /> : <Navigate to="/login" />} />
-          <Route path="/messages" element={token ? <Messages /> : <Navigate to="/login" />} />
           <Route path="/rsvps" element={token ? <RSVPs /> : <Navigate to="/login" />} />
           <Route path="/profile" element={token ? <Profile /> : <Navigate to="/login" />} />
           <Route path="/profile/:id" element={token ? <ProfileView /> : <Navigate to="/login" />} />

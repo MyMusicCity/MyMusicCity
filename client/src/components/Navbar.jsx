@@ -9,9 +9,6 @@ export default function Navbar() {
     <nav className="navbar">
       <Link to="/" className="nav-logo">MyMusicCity</Link>
       <div className="nav-icons">
-        <Link to="/messages">
-          <FaCommentDots className="nav-icon" title="Messages" />
-        </Link>
         <Link to="/rsvps">
           <FaHeart className="nav-icon" title="My RSVPs" />
         </Link>
