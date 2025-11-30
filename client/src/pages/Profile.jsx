@@ -49,14 +49,14 @@ export default function Profile() {
         if (err.message.includes("User profile not found")) {
           setError("We're setting up your profile. Please try refreshing the page, or sign out and back in if this continues.");
         } else if (err.message.includes("Unable to create user profile")) {
-          setError("There was an issue creating your profile. This may be due to a data conflict. Please contact support with this exact message: " + err.message);
+          setError("There was an issue creating your profile. This may be due to a data conflict. Please try the 'Clean Up Account' option below, or contact support with this exact message: " + err.message);
         } else if (err.message.includes("Authentication required")) {
           setError("Please sign in again to access your profile.");
           setTimeout(() => navigate("/login"), 2000);
-        } else if (err.message.includes("Username conflict") || err.message.includes("Email already exists")) {
-          setError("Account conflict detected: " + err.message + " Please contact support for assistance.");
+        } else if (err.message.includes("Username conflict") || err.message.includes("Email already exists") || err.message.includes("Account conflict")) {
+          setError("Account conflict detected: " + err.message + " Try the 'Clean Up Account' option below or contact support for assistance.");
         } else {
-          setError(`Profile loading failed: ${err.message}. Please contact support if this continues.`);
+          setError(`Profile loading failed: ${err.message}. If you had an account before our Auth0 migration, try the 'Clean Up Account' option below.`);
         }
       } finally {
         setLoading(false);
@@ -112,6 +112,82 @@ export default function Profile() {
   const handleLogout = () => {
     logout();
     navigate("/");
+  };
+
+  const handleCleanupLegacy = async () => {
+    if (!window.confirm("This will clean up any old account data that may be causing conflicts. Continue?")) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      const headers = { "Content-Type": "application/json" };
+      
+      if (authUser?.getAccessTokenSilently) {
+        const token = await authUser.getAccessTokenSilently();
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${process.env.REACT_APP_API_URL || window.location.origin}/api/cleanup-legacy`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to cleanup legacy accounts');
+      }
+
+      const result = await response.json();
+      alert(`Cleanup successful! Removed ${result.deletedAccounts} conflicting accounts. Please refresh the page.`);
+      window.location.reload();
+    } catch (err) {
+      console.error('Failed to cleanup legacy accounts:', err);
+      setError(`Failed to cleanup accounts: ${err.message}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleCleanupLegacy = async () => {
+    if (!window.confirm("This will clean up any old account data that may be causing conflicts. This is recommended for accounts created before our Auth0 migration. Continue?")) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      const headers = { "Content-Type": "application/json" };
+      
+      if (authUser?.getAccessTokenSilently) {
+        const token = await authUser.getAccessTokenSilently();
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${process.env.REACT_APP_API_URL || window.location.origin}/api/cleanup-legacy`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to cleanup legacy accounts');
+      }
+
+      const result = await response.json();
+      if (result.deletedAccounts > 0) {
+        alert(`Cleanup successful! Removed ${result.deletedAccounts} conflicting accounts. Please refresh the page to see if your issues are resolved.`);
+        window.location.reload();
+      } else {
+        alert('No conflicting accounts found. Your account appears to be clean.');
+      }
+    } catch (err) {
+      console.error('Failed to cleanup legacy accounts:', err);
+      setError(`Failed to cleanup accounts: ${err.message}`);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -310,13 +386,26 @@ export default function Profile() {
           <button className="logout-btn" onClick={handleLogout}>
             Sign Out
           </button>
-          <button 
-            className="delete-account-btn" 
-            onClick={handleDeleteAccount}
-            disabled={deleting}
-          >
-            {deleting ? 'Deleting...' : 'Delete Account'}
-          </button>
+          
+          <div className="account-management">
+            <button 
+              className="cleanup-account-btn"
+              onClick={handleCleanupLegacy}
+              disabled={deleting}
+              title="Clean up conflicting legacy account data from before Auth0 migration"
+            >
+              {deleting ? "Cleaning..." : "🧹 Clean Up Account"}
+            </button>
+            
+            <button 
+              className="delete-account-btn" 
+              onClick={handleDeleteAccount}
+              disabled={deleting}
+              title="Permanently delete your account and all data"
+            >
+              {deleting ? 'Deleting...' : '🗑️ Delete My Account'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

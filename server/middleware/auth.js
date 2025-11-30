@@ -49,16 +49,23 @@ async function findOrCreateAuth0User(auth0Id, email) {
     // If not found, try to find by email (for migration of existing users)
     user = await User.findOne({ email });
     if (user) {
-      console.log('Found existing user by email, adding auth0Id:', user.username);
-      // Update existing user with auth0Id
-      user.auth0Id = auth0Id;
-      try {
-        await user.save();
-        console.log('Successfully updated user with auth0Id');
-        return user;
-      } catch (saveError) {
-        console.error('Failed to save auth0Id to existing user:', saveError);
-        throw new Error(`Failed to link existing account: ${saveError.message}`);
+      if (!user.auth0Id) {
+        console.log('Found existing user by email, adding auth0Id:', user.username);
+        // Update existing user with auth0Id
+        user.auth0Id = auth0Id;
+        try {
+          await user.save();
+          console.log('Successfully updated user with auth0Id');
+          return user;
+        } catch (saveError) {
+          console.error('Failed to save auth0Id to existing user:', saveError);
+          throw new Error(`Failed to link existing account: ${saveError.message}`);
+        }
+      } else if (user.auth0Id !== auth0Id) {
+        // Account conflict: same email but different auth0Id
+        console.log('⚠️ Account conflict detected - email exists with different auth0Id');
+        console.log(`Existing auth0Id: ${user.auth0Id}, New auth0Id: ${auth0Id}`);
+        throw new Error('Account conflict: This email is already associated with a different account. Please contact support or delete the existing account.');
       }
     }
 

@@ -454,6 +454,45 @@ app.delete("/api/me/account", auth, async (req, res) => {
   }
 });
 
+// Force cleanup legacy accounts that conflict with Auth0
+app.post('/api/cleanup-legacy', auth, async (req, res) => {
+  try {
+    const authUser = req.user;
+    const userEmail = authUser.email;
+    
+    console.log('🧹 Cleaning up legacy accounts for email:', userEmail);
+    
+    // Find all accounts with this email
+    const allAccounts = await User.find({ email: userEmail });
+    console.log(`Found ${allAccounts.length} accounts with email ${userEmail}`);
+    
+    // Keep only the Auth0 account, delete others
+    const accountsToDelete = allAccounts.filter(account => 
+      !account.auth0Id || account.auth0Id !== authUser.auth0Id
+    );
+    
+    for (const account of accountsToDelete) {
+      console.log(`🗑️ Deleting legacy account: ${account._id}`);
+      // First delete associated RSVPs
+      await Rsvp.deleteMany({ user: account._id });
+      // Then delete the account
+      await User.deleteOne({ _id: account._id });
+    }
+    
+    console.log(`✅ Cleaned up ${accountsToDelete.length} legacy accounts`);
+    res.json({ 
+      message: 'Legacy accounts cleaned up successfully',
+      deletedAccounts: accountsToDelete.length
+    });
+  } catch (error) {
+    console.error('❌ Legacy cleanup error:', error);
+    res.status(500).json({ 
+      error: 'Failed to clean up legacy accounts', 
+      details: error.message 
+    });
+  }
+});
+
 // RSVPs for current user
 app.get("/api/me/rsvps", auth, async (req, res) => {
   try {
