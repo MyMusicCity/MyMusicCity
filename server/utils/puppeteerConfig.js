@@ -2,6 +2,7 @@
 // Centralized browser configuration for production environments
 
 const puppeteer = require('puppeteer');
+const { installBrowsers } = require('../scripts/install-browsers');
 let playwright = null;
 
 // Try to load playwright as fallback
@@ -72,6 +73,17 @@ function getPuppeteerConfig() {
  */
 async function launchBrowser() {
   console.log('Starting enhanced browser launch sequence...');
+  
+  // Ensure browsers are installed before attempting launch
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+  if (isProduction) {
+    console.log('🔧 Production environment detected, ensuring browsers are installed...');
+    try {
+      await installBrowsers();
+    } catch (error) {
+      console.log('⚠️ Browser installation completed with some warnings:', error.message);
+    }
+  }
   
   // Strategy 1: Try Playwright first (often more reliable on cloud platforms)
   if (playwright) {
