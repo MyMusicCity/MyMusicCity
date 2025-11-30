@@ -337,10 +337,24 @@ app.get("/api/me", auth, async (req, res) => {
 // RSVPs for current user
 app.get("/api/me/rsvps", auth, async (req, res) => {
   try {
-    const id = req.user?.id;
-    if (!id) return res.status(401).json({ error: "Unauthorized" });
+    const authUserId = req.user?.id;
+    if (!authUserId) return res.status(401).json({ error: "Unauthorized" });
 
-    const rsvps = await Rsvp.find({ user: id })
+    let userId = authUserId;
+
+    // If this looks like an Auth0 ID, find the corresponding User record
+    if (authUserId.startsWith('auth0|') || authUserId.includes('|')) {
+      const User = require('./models/User');
+      const user = await User.findOne({ auth0Id: authUserId });
+      if (!user) {
+        // No user record found for this Auth0 ID - return empty RSVPs
+        console.log(`No User record found for Auth0 ID: ${authUserId}`);
+        return res.json([]);
+      }
+      userId = user._id;
+    }
+
+    const rsvps = await Rsvp.find({ user: userId })
       .populate("event", "title date location")
       .populate("user", "username email");
 
@@ -353,7 +367,7 @@ app.get("/api/me/rsvps", auth, async (req, res) => {
     res.json(normalized);
 
   } catch (err) {
-    console.error(err);
+    console.error("Error fetching user RSVPs:", err);
     res.status(500).json({ error: "Failed to fetch user RSVPs" });
   }
 });
@@ -375,13 +389,28 @@ app.post(
       if (!mongoose.Types.ObjectId.isValid(eventId))
         return res.status(400).json({ error: "Invalid eventId" });
 
-      const userId = req.user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const authUserId = req.user?.id;
+      if (!authUserId) return res.status(401).json({ error: "Unauthorized" });
 
-      const [foundEvent, foundUser] = await Promise.all([
-        Event.findById(eventId).select("_id title"),
-        User.findById(userId).select("_id username email"),
-      ]);
+      let userId = authUserId;
+      let foundUser = null;
+
+      // If this looks like an Auth0 ID, find the corresponding User record
+      if (authUserId.startsWith('auth0|') || authUserId.includes('|')) {
+        foundUser = await User.findOne({ auth0Id: authUserId }).select("_id username email");
+        if (!foundUser) {
+          return res.status(404).json({ error: "User profile not found. Please complete registration first." });
+        }
+        userId = foundUser._id;
+      } else {
+        // Direct MongoDB ObjectId lookup
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+          return res.status(400).json({ error: "Invalid user ID" });
+        }
+        foundUser = await User.findById(userId).select("_id username email");
+      }
+
+      const foundEvent = await Event.findById(eventId).select("_id title");
 
       if (!foundEvent) return res.status(404).json({ error: "Event not found" });
       if (!foundUser) return res.status(404).json({ error: "User not found" });
@@ -417,8 +446,20 @@ app.delete("/api/rsvps/event/:eventId", auth, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(eventId))
       return res.status(400).json({ error: "Invalid event id" });
 
-    const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const authUserId = req.user?.id;
+    if (!authUserId) return res.status(401).json({ error: "Unauthorized" });
+
+    let userId = authUserId;
+
+    // If this looks like an Auth0 ID, find the corresponding User record
+    if (authUserId.startsWith('auth0|') || authUserId.includes('|')) {
+      const User = require('./models/User');
+      const user = await User.findOne({ auth0Id: authUserId });
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      userId = user._id;
+    }
 
     const deleted = await Rsvp.findOneAndDelete({ event: eventId, user: userId })
       .lean()
