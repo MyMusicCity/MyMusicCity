@@ -140,11 +140,54 @@ export default function Profile() {
       }
 
       const result = await response.json();
-      alert(`Cleanup successful! Removed ${result.deletedAccounts} conflicting accounts. Please refresh the page.`);
-      window.location.reload();
+      if (result.deletedAccounts > 0) {
+        alert(`Cleanup successful! Removed ${result.deletedAccounts} conflicting accounts. Please refresh the page to see if your issues are resolved.`);
+        window.location.reload();
+      } else {
+        alert('No conflicting accounts found. Your account appears to be clean.');
+      }
     } catch (err) {
       console.error('Failed to cleanup legacy accounts:', err);
-      setError(`Failed to cleanup accounts: ${err.message}`);
+      
+      // If regular cleanup fails, offer emergency cleanup
+      if (window.confirm(`Regular cleanup failed: ${err.message}\n\nTry emergency cleanup? This will delete ALL accounts with your email and let you start fresh.`)) {
+        handleEmergencyCleanup();
+      } else {
+        setError(`Failed to cleanup accounts: ${err.message}`);
+      }
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleEmergencyCleanup = async () => {
+    try {
+      setDeleting(true);
+      
+      const email = authUser?.email;
+      if (!email) {
+        throw new Error('No email found for emergency cleanup');
+      }
+
+      const response = await fetch(`${process.env.REACT_APP_API_URL || window.location.origin}/api/emergency-cleanup`, {
+        method: 'POST',
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to perform emergency cleanup');
+      }
+
+      const result = await response.json();
+      alert(`Emergency cleanup successful! Removed ${result.deletedAccounts} accounts. Please sign out and sign back in to create a fresh account.`);
+      logout();
+      navigate("/");
+    } catch (err) {
+      console.error('Emergency cleanup failed:', err);
+      setError(`Emergency cleanup failed: ${err.message}`);
     } finally {
       setDeleting(false);
     }

@@ -493,6 +493,44 @@ app.post('/api/cleanup-legacy', auth, async (req, res) => {
   }
 });
 
+// Emergency cleanup endpoint - more permissive for severely broken accounts
+app.post('/api/emergency-cleanup', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    console.log('🚨 Emergency cleanup for email:', email);
+    
+    // Find all accounts with this email
+    const allAccounts = await User.find({ email: email });
+    console.log(`Found ${allAccounts.length} accounts with email ${email}`);
+    
+    // Delete all accounts (emergency mode)
+    let deletedCount = 0;
+    for (const account of allAccounts) {
+      console.log(`🗑️ Emergency deleting account: ${account._id}`);
+      await Rsvp.deleteMany({ user: account._id });
+      await User.deleteOne({ _id: account._id });
+      deletedCount++;
+    }
+    
+    console.log(`✅ Emergency cleanup completed: ${deletedCount} accounts removed`);
+    res.json({ 
+      message: 'Emergency cleanup completed successfully',
+      deletedAccounts: deletedCount
+    });
+  } catch (error) {
+    console.error('❌ Emergency cleanup error:', error);
+    res.status(500).json({ 
+      error: 'Failed to perform emergency cleanup', 
+      details: error.message 
+    });
+  }
+});
+
 // RSVPs for current user
 app.get("/api/me/rsvps", auth, async (req, res) => {
   try {
