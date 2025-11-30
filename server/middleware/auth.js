@@ -180,23 +180,32 @@ module.exports = function auth(req, res, next) {
         console.log(`Auth0 token verified for user: ${decoded.email}`);
         
         try {
-          // Validate token claims
-          if (!decoded.sub || !decoded.email) {
+          // Validate token claims - be more permissive
+          if (!decoded.sub) {
+            console.log('❌ Missing subject (sub) in token claims');
             return res.status(401).json({ 
               error: "INVALID_TOKEN_CLAIMS",
-              message: "Token missing required user information"
+              message: "Token missing user identifier"
             });
           }
           
+          // Email might not always be present, use a fallback
+          const userEmail = decoded.email || decoded['https://myapp/email'] || `${decoded.sub}@temp.local`;
+          console.log('✅ Token claims validated:', {
+            sub: decoded.sub,
+            email: userEmail,
+            hasEmail: !!decoded.email
+          });
+          
           // Find or create MongoDB User record for Auth0 user
-          const mongoUser = await findOrCreateAuth0User(decoded.sub, decoded.email);
+          const mongoUser = await findOrCreateAuth0User(decoded.sub, userEmail);
           
           // Check if profile is complete
           const isProfileComplete = mongoUser.year && mongoUser.major;
           
           req.user = { 
             id: decoded.sub,
-            email: decoded.email,
+            email: userEmail,
             username: mongoUser.username,
             auth0Id: decoded.sub,
             mongoUser: mongoUser,

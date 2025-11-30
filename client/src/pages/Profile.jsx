@@ -47,9 +47,33 @@ export default function Profile() {
       } catch (err) {
         console.error("Failed to load profile:", err);
         
-        // Provide more specific error messages
+        // Provide more specific error messages and auto-suggestions
         if (err.message.includes("User profile not found")) {
           setError("We're setting up your profile. Please try refreshing the page, or sign out and back in if this continues.");
+        } else if (err.message.includes("INVALID_TOKEN_CLAIMS") || err.code === 'INVALID_TOKEN_CLAIMS') {
+          setError("Authentication issue detected. Please try the emergency cleanup option below to fix this.");
+          // Auto-suggest emergency cleanup after a delay
+          setTimeout(() => {
+            if (window.confirm('Profile loading failed due to invalid authentication. Would you like to try emergency cleanup to fix this?')) {
+              handleEmergencyCleanup();
+            }
+          }, 2000);
+        } else if (err.code === 'ACCOUNT_CONFLICT') {
+          setError("Account conflict detected. Use the emergency cleanup option below to resolve this.");
+        } else if (err.status === 401) {
+          setError("Authentication failed. Please try the emergency cleanup option below.");
+        } else {
+          setError(`Failed to load profile: ${err.message}. Try the emergency cleanup option if this persists.`);
+        }
+        } else if (err.message.includes("INVALID_TOKEN_CLAIMS")) {
+          setError("Authentication issue detected. Please try signing out and back in, or use emergency cleanup below.");
+        } else if (err.code === 'ACCOUNT_CONFLICT') {
+          setError("Account conflict detected. Use the emergency cleanup option below to resolve this.");
+        } else if (err.status === 401) {
+          setError("Authentication failed. Please sign out and back in, or use emergency cleanup.");
+        } else {
+          setError(`Failed to load profile: ${err.message}. Try refreshing or using emergency cleanup below.`);
+        }
         } else if (err.message.includes("Unable to create user profile")) {
           setError("There was an issue creating your profile. This may be due to a data conflict. Please try the 'Clean Up Account' option below, or contact support with this exact message: " + err.message);
         } else if (err.message.includes("Authentication required")) {

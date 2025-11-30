@@ -74,11 +74,13 @@ export function AuthProvider({ children }) {
         try {
           console.log('🎫 Attempting to get Auth0 access token...');
           const accessToken = await getAccessTokenSilently({
-            detailedResponse: true
+            detailedResponse: true,
+            scope: "openid profile email"
           });
           console.log('✅ Got Auth0 token:', {
             hasToken: !!accessToken?.access_token,
-            tokenLength: accessToken?.access_token?.length
+            tokenLength: accessToken?.access_token?.length,
+            scope: accessToken?.scope
           });
           
           setTokenState(accessToken.access_token);
