@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Switch to jakeScrape",
+			"type": "shell",
+			"command": "git checkout jakeScrape"
+		},
+		{
+			"label": "Stage Auth0 fixes",
+			"type": "shell",
+			"command": "git add ."
+		}
+	]
+}

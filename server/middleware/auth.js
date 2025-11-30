@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 
 // Try to load jwks-rsa for Auth0 support
 let jwksClient = null;
@@ -33,6 +34,43 @@ function getKey(header, callback) {
   });
 }
 
+// Find or create User record for Auth0 users
+async function findOrCreateAuth0User(auth0Id, email) {
+  try {
+    // First try to find existing user by auth0Id
+    let user = await User.findOne({ auth0Id });
+    if (user) {
+      return user;
+    }
+
+    // If not found, try to find by email (for migration of existing users)
+    user = await User.findOne({ email });
+    if (user) {
+      // Update existing user with auth0Id
+      user.auth0Id = auth0Id;
+      await user.save();
+      return user;
+    }
+
+    // Create new user for Auth0
+    const username = email?.split('@')[0] || 'user';
+    const newUser = new User({
+      username: username,
+      email: email,
+      password: 'auth0-user', // Placeholder, not used for Auth0 users
+      auth0Id: auth0Id,
+      year: null,
+      major: null
+    });
+
+    await newUser.save();
+    return newUser;
+  } catch (error) {
+    console.error('Error finding/creating Auth0 user:', error);
+    throw error;
+  }
+}
+
 module.exports = function auth(req, res, next) {
   const header = req.headers && req.headers.authorization;
   if (!header) return res.status(401).json({ error: "Missing Authorization header" });
@@ -49,16 +87,32 @@ module.exports = function auth(req, res, next) {
       audience: process.env.AUTH0_AUDIENCE,
       issuer: `https://${process.env.AUTH0_DOMAIN}/`,
       algorithms: ['RS256']
-    }, (err, decoded) => {
+    }, async (err, decoded) => {
       if (!err && decoded) {
         // Successfully verified Auth0 token
-        req.user = { 
-          id: decoded.sub, // Auth0 user ID (e.g., "auth0|123456")
-          email: decoded.email,
-          auth0Id: decoded.sub,
-          username: decoded.email?.split('@')[0] || 'user'
-        };
-        return next();
+        try {
+          // Find or create MongoDB User record for Auth0 user
+          const mongoUser = await findOrCreateAuth0User(decoded.sub, decoded.email);
+          
+          req.user = { 
+            id: decoded.sub, // Auth0 user ID (e.g., "auth0|123456")
+            email: decoded.email,
+            auth0Id: decoded.sub,
+            username: decoded.email?.split('@')[0] || 'user',
+            mongoUser: mongoUser // Include the full MongoDB user record
+          };
+          return next();
+        } catch (dbError) {
+          console.error('Database error during Auth0 user creation:', dbError);
+          // Continue with basic user object even if DB fails
+          req.user = { 
+            id: decoded.sub,
+            email: decoded.email,
+            auth0Id: decoded.sub,
+            username: decoded.email?.split('@')[0] || 'user'
+          };
+          return next();
+        }
       }
       
       // Auth0 verification failed, try local JWT as fallback

@@ -269,5 +269,43 @@ export async function postReply(commentId, eventId, text) {
   return payload;
 }
 
+// --- Profile management functions ---
+export async function getCurrentUser() {
+  if (!API_BASE) throw new Error("No API base URL configured");
+  const headers = await getAuthHeaders();
+  
+  const res = await fetchWithTimeout(`${API_BASE}/api/me`, {
+    method: "GET",
+    headers,
+    credentials: "include",
+  });
+  
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData?.error || `Failed to fetch user: ${res.status}`);
+  }
+  
+  return res.json();
+}
+
+export async function updateUserProfile(profileData) {
+  if (!API_BASE) throw new Error("No API base URL configured");
+  const headers = await getAuthHeaders();
+  
+  const res = await fetchWithTimeout(`${API_BASE}/api/me/profile`, {
+    method: "PUT",
+    headers,
+    credentials: "include",
+    body: JSON.stringify(profileData),
+  });
+  
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData?.error || `Failed to update profile: ${res.status}`);
+  }
+  
+  return res.json();
+}
+
 
 

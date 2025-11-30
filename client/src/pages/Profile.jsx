@@ -1,168 +1,255 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaPen } from "react-icons/fa";
+import { FaPen, FaCheck, FaTimes, FaExclamationTriangle } from "react-icons/fa";
+import { AuthContext } from "../AuthContext";
+import { getCurrentUser, updateUserProfile } from "../api";
 import "../styles.css";
 
 export default function Profile() {
   const navigate = useNavigate();
-
-  const [profile, setProfile] = useState({
-    name: "",
-    year: "Senior",
-    major: "Imaginary Numbers",
-    email: "",
-    bio: "laufey for life",
-    memberSince: "October 1, 2023",
-  });
-
+  const { user: authUser, logout } = useContext(AuthContext);
+  
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  
   const [editing, setEditing] = useState({
-    bio: false,
     year: false,
     major: false,
-    email: false,
+  });
+  
+  const [editValues, setEditValues] = useState({
+    year: "",
+    major: "",
   });
 
-  // ✅ Load user info from localStorage
+  // Load user profile
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      const user = JSON.parse(storedUser);
-      setProfile((prev) => ({
-  ...prev,
-  name: user.username || "Unnamed User",
-  email: user.email || "No email provided",
-  year: user.year || "Unknown",
-  major: user.major || "Unknown",
-}));
+    const loadProfile = async () => {
+      if (!authUser) {
+        navigate("/login");
+        return;
+      }
+      
+      try {
+        setLoading(true);
+        setError(null);
+        const userData = await getCurrentUser();
+        setProfile(userData);
+        setEditValues({
+          year: userData.year || "",
+          major: userData.major || "",
+        });
+      } catch (err) {
+        console.error("Failed to load profile:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    } else {
-      // If not logged in, redirect to login page
-      navigate("/login");
-    }
-  }, [navigate]);
+    loadProfile();
+  }, [authUser, navigate]);
 
   const handleEdit = (field) => {
     setEditing({ ...editing, [field]: !editing[field] });
+    if (!editing[field]) {
+      // Starting to edit, reset edit value to current profile value
+      setEditValues({ ...editValues, [field]: profile[field] || "" });
+    }
+  };
+
+  const handleSave = async (field) => {
+    try {
+      setSaving(true);
+      const updateData = { [field]: editValues[field] };
+      const updatedUser = await updateUserProfile(updateData);
+      setProfile(updatedUser);
+      setEditing({ ...editing, [field]: false });
+    } catch (err) {
+      console.error("Failed to update profile:", err);
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = (field) => {
+    setEditing({ ...editing, [field]: false });
+    setEditValues({ ...editValues, [field]: profile[field] || "" });
   };
 
   const handleChange = (field, value) => {
-    setProfile({ ...profile, [field]: value });
+    setEditValues({ ...editValues, [field]: value });
   };
 
   const handleKeyPress = (e, field) => {
-    if (e.key === "Enter") handleEdit(field);
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSave(field);
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      handleCancel(field);
+    }
   };
 
-  // ✅ Log out function
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    navigate("/login");
+    logout();
+    navigate("/");
   };
 
-  // Compute avatar letter dynamically
-  const avatarLetter = profile.name ? profile.name[0].toUpperCase() : "?";
+  if (loading) {
+    return (
+      <div className="profile-page">
+        <div className="profile-card">
+          <div className="loading-spinner">Loading profile...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !profile) {
+    return (
+      <div className="profile-page">
+        <div className="profile-card">
+          <div className="error-message">
+            <FaExclamationTriangle /> Error loading profile: {error}
+          </div>
+          <button onClick={() => window.location.reload()} className="retry-btn">
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const avatarLetter = (profile?.username || profile?.email || "?")[0].toUpperCase();
+  const profileIncomplete = !profile?.profileComplete;
 
   return (
     <div className="profile-page">
       <div className="profile-card">
-        <div className="profile-avatar">{avatarLetter}</div>
-        <h2 className="profile-name">{profile.name}</h2>
-        <p className="profile-date">Member since: {profile.memberSince}</p>
+        {authUser?.picture ? (
+          <img src={authUser.picture} alt="Profile" className="profile-avatar-img" />
+        ) : (
+          <div className="profile-avatar">{avatarLetter}</div>
+        )}
+        
+        <h2 className="profile-name">{profile?.username || authUser?.name || "User"}</h2>
+        <p className="profile-email">{profile?.email || authUser?.email}</p>
+        
+        {profile?.createdAt && (
+          <p className="profile-date">
+            Member since: {new Date(profile.createdAt).toLocaleDateString()}
+          </p>
+        )}
 
-        {/* BIO */}
-        <div className="editable-line">
-          {editing.bio ? (
-            <input
-              type="text"
-              value={profile.bio}
-              onChange={(e) => handleChange("bio", e.target.value)}
-              onKeyDown={(e) => handleKeyPress(e, "bio")}
-              className="editable-input"
-              autoFocus
-            />
-          ) : (
-            <p className="profile-bio">
-              {profile.bio}{" "}
-              <FaPen className="edit-icon" onClick={() => handleEdit("bio")} />
-            </p>
-          )}
-        </div>
+        {profileIncomplete && (
+          <div className="profile-completion-notice">
+            <FaExclamationTriangle className="warning-icon" />
+            Complete your profile to RSVP to events
+          </div>
+        )}
 
         <div className="profile-details">
-          <p>
+          <div className="profile-field">
             <strong>Year:</strong>{" "}
             {editing.year ? (
-              <input
-                type="text"
-                value={profile.year}
-                onChange={(e) => handleChange("year", e.target.value)}
-                onKeyDown={(e) => handleKeyPress(e, "year")}
-                className="editable-input"
-                autoFocus
-              />
+              <div className="edit-controls">
+                <input
+                  type="text"
+                  value={editValues.year}
+                  onChange={(e) => handleChange("year", e.target.value)}
+                  onKeyDown={(e) => handleKeyPress(e, "year")}
+                  className="editable-input"
+                  placeholder="e.g., Sophomore, Graduate"
+                  autoFocus
+                  disabled={saving}
+                />
+                <div className="edit-buttons">
+                  <button 
+                    onClick={() => handleSave("year")} 
+                    disabled={saving}
+                    className="save-btn"
+                  >
+                    <FaCheck />
+                  </button>
+                  <button 
+                    onClick={() => handleCancel("year")} 
+                    disabled={saving}
+                    className="cancel-btn"
+                  >
+                    <FaTimes />
+                  </button>
+                </div>
+              </div>
             ) : (
-              <>
-                {profile.year}{" "}
+              <span className="field-value">
+                {profile?.year || "Not set"}{" "}
                 <FaPen
                   className="edit-icon"
                   onClick={() => handleEdit("year")}
                 />
-              </>
+              </span>
             )}
-          </p>
+          </div>
 
-          <p>
+          <div className="profile-field">
             <strong>Major:</strong>{" "}
             {editing.major ? (
-              <input
-                type="text"
-                value={profile.major}
-                onChange={(e) => handleChange("major", e.target.value)}
-                onKeyDown={(e) => handleKeyPress(e, "major")}
-                className="editable-input"
-                autoFocus
-              />
+              <div className="edit-controls">
+                <input
+                  type="text"
+                  value={editValues.major}
+                  onChange={(e) => handleChange("major", e.target.value)}
+                  onKeyDown={(e) => handleKeyPress(e, "major")}
+                  className="editable-input"
+                  placeholder="e.g., Computer Science, Music"
+                  autoFocus
+                  disabled={saving}
+                />
+                <div className="edit-buttons">
+                  <button 
+                    onClick={() => handleSave("major")} 
+                    disabled={saving}
+                    className="save-btn"
+                  >
+                    <FaCheck />
+                  </button>
+                  <button 
+                    onClick={() => handleCancel("major")} 
+                    disabled={saving}
+                    className="cancel-btn"
+                  >
+                    <FaTimes />
+                  </button>
+                </div>
+              </div>
             ) : (
-              <>
-                {profile.major}{" "}
+              <span className="field-value">
+                {profile?.major || "Not set"}{" "}
                 <FaPen
                   className="edit-icon"
                   onClick={() => handleEdit("major")}
                 />
-              </>
+              </span>
             )}
-          </p>
-
-          <p>
-            <strong>Email:</strong>{" "}
-            {editing.email ? (
-              <input
-                type="text"
-                value={profile.email}
-                onChange={(e) => handleChange("email", e.target.value)}
-                onKeyDown={(e) => handleKeyPress(e, "email")}
-                className="editable-input"
-                autoFocus
-              />
-            ) : (
-              <>
-                {profile.email}{" "}
-                <FaPen
-                  className="edit-icon"
-                  onClick={() => handleEdit("email")}
-                />
-              </>
-            )}
-          </p>
+          </div>
         </div>
 
-        <button className="deactivate-btn">Deactivate account</button>
+        {error && (
+          <div className="error-message">
+            <FaExclamationTriangle /> {error}
+          </div>
+        )}
 
-        {/* ✅ New logout button */}
-        <button className="logout-btn" onClick={handleLogout}>
-          Log out
-        </button>
+        <div className="profile-actions">
+          <button className="logout-btn" onClick={handleLogout}>
+            Sign Out
+          </button>
+        </div>
       </div>
     </div>
   );

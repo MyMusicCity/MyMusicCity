@@ -316,21 +316,94 @@ app.get("/api/users/:id", async (req, res) => {
 // Current logged-in user
 app.get("/api/me", auth, async (req, res) => {
   try {
-    const id = req.user?.id;
-    if (!id) return res.status(401).json({ error: "Unauthorized" });
+    const authUserId = req.user?.id;
+    if (!authUserId) return res.status(401).json({ error: "Unauthorized" });
 
-    const user = await User.findById(id)
-      .select("-password")
-      .lean()
-      .exec();
+    let user;
+
+    // If this looks like an Auth0 ID, find the corresponding User record
+    if (authUserId.startsWith('auth0|') || authUserId.includes('|')) {
+      // Use the mongoUser from auth middleware if available
+      if (req.user?.mongoUser) {
+        user = req.user.mongoUser;
+      } else {
+        // Fallback to database lookup
+        user = await User.findOne({ auth0Id: authUserId })
+          .select("-password")
+          .lean()
+          .exec();
+      }
+    } else {
+      // Direct MongoDB ObjectId lookup
+      user = await User.findById(authUserId)
+        .select("-password")
+        .lean()
+        .exec();
+    }
 
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    res.json(user);
+    // Add profile completion status
+    const profileComplete = !!(user.year && user.major);
+    
+    res.json({
+      ...user,
+      profileComplete
+    });
 
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch current user" });
+  }
+});
+
+// Update user profile (for Auth0 users to complete their profiles)
+app.put("/api/me/profile", auth, async (req, res) => {
+  try {
+    const authUserId = req.user?.id;
+    if (!authUserId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { year, major } = req.body;
+
+    let user;
+
+    // If this looks like an Auth0 ID, find the corresponding User record
+    if (authUserId.startsWith('auth0|') || authUserId.includes('|')) {
+      // Use the mongoUser from auth middleware if available
+      if (req.user?.mongoUser) {
+        user = req.user.mongoUser;
+      } else {
+        // Fallback to database lookup
+        user = await User.findOne({ auth0Id: authUserId });
+      }
+    } else {
+      // Direct MongoDB ObjectId lookup
+      user = await User.findById(authUserId);
+    }
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Update profile fields
+    if (year !== undefined) user.year = year;
+    if (major !== undefined) user.major = major;
+
+    await user.save();
+
+    // Return updated user without password
+    const updatedUser = user.toObject();
+    delete updatedUser.password;
+    
+    // Add profile completion status
+    const profileComplete = !!(updatedUser.year && updatedUser.major);
+    
+    res.json({
+      ...updatedUser,
+      profileComplete
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update profile" });
   }
 });
 
@@ -344,8 +417,16 @@ app.get("/api/me/rsvps", auth, async (req, res) => {
 
     // If this looks like an Auth0 ID, find the corresponding User record
     if (authUserId.startsWith('auth0|') || authUserId.includes('|')) {
-      const User = require('./models/User');
-      const user = await User.findOne({ auth0Id: authUserId });
+      let user;
+      // Use the mongoUser from auth middleware if available
+      if (req.user?.mongoUser) {
+        user = req.user.mongoUser;
+      } else {
+        // Fallback to database lookup
+        const User = require('./models/User');
+        user = await User.findOne({ auth0Id: authUserId });
+      }
+      
       if (!user) {
         // No user record found for this Auth0 ID - return empty RSVPs
         console.log(`No User record found for Auth0 ID: ${authUserId}`);
@@ -397,17 +478,24 @@ app.post(
 
       // If this looks like an Auth0 ID, find the corresponding User record
       if (authUserId.startsWith('auth0|') || authUserId.includes('|')) {
-        foundUser = await User.findOne({ auth0Id: authUserId }).select("_id username email");
-        if (!foundUser) {
-          return res.status(404).json({ error: "User profile not found. Please complete registration first." });
+        // Use the mongoUser from auth middleware if available
+        if (req.user?.mongoUser) {
+          foundUser = req.user.mongoUser;
+          userId = foundUser._id;
+        } else {
+          // Fallback to database lookup
+          foundUser = await User.findOne({ auth0Id: authUserId }).select("_id username email year major");
+          if (!foundUser) {
+            return res.status(404).json({ error: "User profile not found. Please try logging in again." });
+          }
+          userId = foundUser._id;
         }
-        userId = foundUser._id;
       } else {
         // Direct MongoDB ObjectId lookup
         if (!mongoose.Types.ObjectId.isValid(userId)) {
           return res.status(400).json({ error: "Invalid user ID" });
         }
-        foundUser = await User.findById(userId).select("_id username email");
+        foundUser = await User.findById(userId).select("_id username email year major");
       }
 
       const foundEvent = await Event.findById(eventId).select("_id title");
