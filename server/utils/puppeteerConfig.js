@@ -124,12 +124,15 @@ async function launchBrowser() {
     console.log('Minimal Puppeteer failed:', error.message);
   }
   
-  // Strategy 3: Try with system Chrome paths
+  // Strategy 3: Try with system Chrome paths (more comprehensive)
   const chromePaths = [
     '/usr/bin/google-chrome-stable',
     '/usr/bin/google-chrome',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/chromium'
+    '/usr/bin/chromium-browser', 
+    '/usr/bin/chromium',
+    '/snap/bin/chromium',
+    '/usr/local/bin/chromium',
+    '/usr/local/bin/google-chrome'
   ];
   
   for (const chromePath of chromePaths) {

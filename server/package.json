@@ -11,7 +11,7 @@
     "scrape:all": "node scraping/scrapeAll.js",
     "install-chrome": "npx puppeteer browsers install chrome",
     "install-playwright": "npx playwright install chromium",
-    "postinstall": "npm run install-chrome || npm run install-playwright || echo 'Browser install failed, will try system browsers'"
+    "postinstall": "npm run install-chrome && npm run install-playwright || echo 'Browser installs completed with some failures'"
   },
   "dependencies": {
     "axios": "^1.12.2",
