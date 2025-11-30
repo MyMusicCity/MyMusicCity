@@ -9,7 +9,7 @@
     "test": "jest",
     "scrape": "node scraping/scrapeNashvilleScene.js",
     "scrape:all": "node scraping/scrapeAll.js",
-    "postinstall": "npx puppeteer browsers install chrome || echo 'Puppeteer browser install failed, continuing...'"
+    "postinstall": "if [ \"$PUPPETEER_SKIP_CHROMIUM_DOWNLOAD\" != \"true\" ]; then npx puppeteer browsers install chrome || echo 'Puppeteer browser install failed'; fi"
   },
   "dependencies": {
     "axios": "^1.12.2",

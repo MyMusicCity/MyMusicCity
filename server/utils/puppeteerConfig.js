@@ -10,7 +10,7 @@ function getPuppeteerConfig() {
   const isProduction = process.env.NODE_ENV === 'production';
   
   const config = {
-    headless: true,
+    headless: 'new',
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -32,9 +32,27 @@ function getPuppeteerConfig() {
       '--max_old_space_size=4096'
     );
     
-    // Use system Chrome if available via environment variable
-    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-      config.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    // Try multiple possible Chrome locations for Render
+    const possiblePaths = [
+      process.env.PUPPETEER_EXECUTABLE_PATH,
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium'
+    ];
+    
+    for (const path of possiblePaths) {
+      if (path) {
+        try {
+          const fs = require('fs');
+          if (fs.existsSync(path)) {
+            config.executablePath = path;
+            break;
+          }
+        } catch (e) {
+          // Continue to next path
+        }
+      }
     }
   }
 
@@ -42,7 +60,7 @@ function getPuppeteerConfig() {
 }
 
 /**
- * Launch Puppeteer browser with optimized configuration
+ * Launch Puppeteer browser with optimized configuration and fallbacks
  */
 async function launchBrowser() {
   try {
@@ -52,12 +70,33 @@ async function launchBrowser() {
   } catch (error) {
     console.error('Failed to launch Puppeteer:', error.message);
     
-    // Fallback: try with minimal configuration
-    console.log('Trying fallback configuration...');
-    return await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    // Fallback 1: Try without executable path
+    console.log('Trying fallback configuration without executable path...');
+    try {
+      return await puppeteer.launch({
+        headless: 'new',
+        args: [
+          '--no-sandbox', 
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu'
+        ]
+      });
+    } catch (error2) {
+      console.error('Fallback 1 failed:', error2.message);
+      
+      // Fallback 2: Minimal configuration
+      console.log('Trying minimal configuration...');
+      try {
+        return await puppeteer.launch({
+          headless: 'new',
+          args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+      } catch (error3) {
+        console.error('All Puppeteer launch attempts failed:', error3.message);
+        throw new Error('Could not launch browser with any configuration');
+      }
+    }
   }
 }
 
