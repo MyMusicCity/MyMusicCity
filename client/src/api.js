@@ -164,7 +164,6 @@ export async function getUserById(id) {
 }
 
 export async function signupUser(username, email, password, year, major) {
-  console.log("API_BASE is", API_BASE);
   const res = await fetchWithTimeout(`${API_BASE}/api/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
