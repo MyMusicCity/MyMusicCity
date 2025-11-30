@@ -44,7 +44,7 @@ export function AuthProvider({ children }) {
     const getToken = async () => {
       if (auth0IsAuthenticated && auth0User) {
         if (!isValidVanderbiltUser(auth0User)) {
-          console.error('Access restricted to Vanderbilt email addresses');
+          // Redirect unauthorized users
           auth0Logout({ returnTo: window.location.origin });
           return;
         }
@@ -60,7 +60,7 @@ export function AuthProvider({ children }) {
             picture: auth0User.picture
           });
         } catch (error) {
-          console.error('Error getting access token:', error);
+          // Token access failed, user will need to re-authenticate
         }
       } else {
         setTokenState(null);

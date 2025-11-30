@@ -12,13 +12,15 @@ const clientId = process.env.REACT_APP_AUTH0_CLIENT_ID;
 
 // Validate Auth0 configuration
 if (!domain || !clientId || domain.includes('your-auth0-domain') || clientId.includes('your-auth0-client-id')) {
-  console.error("❌ Auth0 configuration missing or using placeholder values!");
-  console.error("Required environment variables:");
-  console.error("- REACT_APP_AUTH0_DOMAIN (currently:", domain, ")");
-  console.error("- REACT_APP_AUTH0_CLIENT_ID (currently:", clientId, ")");
-  console.error("\n📝 To fix this:");
-  console.error("1. Create real Auth0 application at https://manage.auth0.com");
-  console.error("2. Update environment variables in Vercel dashboard");
+  if (process.env.NODE_ENV === 'development') {
+    console.error("❌ Auth0 configuration missing or using placeholder values!");
+    console.error("Required environment variables:");
+    console.error("- REACT_APP_AUTH0_DOMAIN (currently:", domain, ")");
+    console.error("- REACT_APP_AUTH0_CLIENT_ID (currently:", clientId, ")");
+    console.error("\n📝 To fix this:");
+    console.error("1. Create real Auth0 application at https://manage.auth0.com");
+    console.error("2. Update environment variables in Vercel dashboard");
+  }
 }
 
 // Find the <div id="root"></div> in public/index.html
