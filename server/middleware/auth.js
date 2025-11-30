@@ -55,20 +55,28 @@ async function findOrCreateAuth0User(auth0Id, email) {
     // Create new user for Auth0
     let username = email?.split('@')[0] || 'user';
     
-    // Handle username conflicts by appending numbers
-    let baseUsername = username;
+    // Handle username conflicts with improved strategy
+    const baseUsername = username.toLowerCase().replace(/[^a-z0-9]/g, '') || 'user'; // Clean username
+    let finalUsername = baseUsername;
     let counter = 1;
-    while (await User.findOne({ username })) {
-      username = `${baseUsername}${counter}`;
+    const maxAttempts = 20; // Reasonable limit
+    
+    // Check for conflicts with bounded retry
+    while (counter <= maxAttempts) {
+      const existingUser = await User.findOne({ username: finalUsername });
+      if (!existingUser) break;
+      
+      finalUsername = `${baseUsername}${counter}`;
       counter++;
-      if (counter > 100) { // Prevent infinite loop
-        username = `${baseUsername}_${Date.now()}`;
-        break;
-      }
+    }
+    
+    // If still conflicts after maxAttempts, use timestamp
+    if (counter > maxAttempts) {
+      finalUsername = `${baseUsername}_${Date.now().toString().slice(-6)}`;
     }
 
     const newUser = new User({
-      username: username,
+      username: finalUsername,
       email: email,
       password: 'auth0-user', // Placeholder, not used for Auth0 users
       auth0Id: auth0Id,
@@ -108,23 +116,20 @@ module.exports = function auth(req, res, next) {
           const mongoUser = await findOrCreateAuth0User(decoded.sub, decoded.email);
           
           req.user = { 
-            id: decoded.sub, // Auth0 user ID (e.g., "auth0|123456")
+            id: mongoUser._id.toString(), // Use MongoDB ObjectId for consistency
             email: decoded.email,
             auth0Id: decoded.sub,
-            username: decoded.email?.split('@')[0] || 'user',
+            username: mongoUser.username,
             mongoUser: mongoUser // Include the full MongoDB user record
           };
           return next();
         } catch (dbError) {
-          console.error('Database error during Auth0 user creation:', dbError);
-          // Continue with basic user object even if DB fails
-          req.user = { 
-            id: decoded.sub,
-            email: decoded.email,
-            auth0Id: decoded.sub,
-            username: decoded.email?.split('@')[0] || 'user'
-          };
-          return next();
+          console.error('Critical: Failed to create/find MongoDB user for Auth0 user:', dbError);
+          // Don't continue without MongoDB user - this breaks functionality
+          return res.status(500).json({ 
+            error: "Unable to create user profile. Please try signing out and back in, or contact support if this continues.",
+            details: process.env.NODE_ENV === 'development' ? dbError.message : undefined
+          });
         }
       }
       

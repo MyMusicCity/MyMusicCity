@@ -44,14 +44,17 @@ async function getAuthHeaders() {
       const token = await getAccessTokenSilently();
       if (token) {
         headers.Authorization = `Bearer ${token}`;
+        return headers; // Return immediately with Auth0 token
       }
     } catch (error) {
       console.warn('Failed to get Auth0 token:', error);
+      // If Auth0 is configured but fails, don't fallback to localStorage for security
+      throw new Error('Authentication required. Please sign in again.');
     }
   }
   
-  // Fallback to localStorage token for backward compatibility
-  if (!headers.Authorization) {
+  // Only use localStorage token if Auth0 is not configured
+  if (!getAccessTokenSilently && !headers.Authorization) {
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     if (token) {
       headers.Authorization = `Bearer ${token}`;

@@ -321,79 +321,31 @@ app.get("/api/me", auth, async (req, res) => {
 
     let user;
 
-    // If this looks like an Auth0 ID, find the corresponding User record
-    if (authUserId.startsWith('auth0|') || authUserId.includes('|')) {
-      // Use the mongoUser from auth middleware if available
-      if (req.user?.mongoUser) {
-        user = req.user.mongoUser;
+    // Check if we have mongoUser from auth middleware (preferred)
+    if (req.user?.mongoUser) {
+      user = req.user.mongoUser.toObject ? req.user.mongoUser.toObject() : req.user.mongoUser;
+      delete user.password;
+    } else {
+      // Fallback: look up by user ID (should be MongoDB ObjectId now)
+      if (mongoose.Types.ObjectId.isValid(authUserId)) {
+        user = await User.findById(authUserId)
+          .select("-password")
+          .lean()
+          .exec();
       } else {
-        // Fallback to database lookup
+        // Legacy: might be Auth0 ID, try auth0Id lookup
         user = await User.findOne({ auth0Id: authUserId })
           .select("-password")
           .lean()
           .exec();
-          
-        // If still no user found, try to create one now
-        if (!user) {
-          try {
-            const User = require('./models/User');
-            
-            // Import the same function used in auth middleware
-            const findOrCreateAuth0User = async (auth0Id, email) => {
-              // Find by email first (for existing users)
-              let existingUser = await User.findOne({ email });
-              if (existingUser) {
-                existingUser.auth0Id = auth0Id;
-                await existingUser.save();
-                return existingUser;
-              }
-              
-              // Create new user
-              let username = email?.split('@')[0] || 'user';
-              let baseUsername = username;
-              let counter = 1;
-              while (await User.findOne({ username })) {
-                username = `${baseUsername}${counter}`;
-                counter++;
-                if (counter > 100) {
-                  username = `${baseUsername}_${Date.now()}`;
-                  break;
-                }
-              }
-              
-              const newUser = new User({
-                username,
-                email,
-                password: 'auth0-user',
-                auth0Id,
-                year: null,
-                major: null
-              });
-              
-              await newUser.save();
-              return newUser;
-            };
-            
-            const createdUser = await findOrCreateAuth0User(authUserId, req.user?.email);
-            user = createdUser.toObject();
-            delete user.password;
-          } catch (createError) {
-            console.error('Failed to create user record:', createError);
-            return res.status(500).json({ 
-              error: "Unable to create user profile. Please contact support." 
-            });
-          }
-        }
       }
-    } else {
-      // Direct MongoDB ObjectId lookup
-      user = await User.findById(authUserId)
-        .select("-password")
-        .lean()
-        .exec();
     }
 
-    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user) {
+      return res.status(404).json({ 
+        error: "User profile not found. Please try signing out and back in." 
+      });
+    }
 
     // Add profile completion status
     const profileComplete = !!(user.year && user.major);
@@ -404,8 +356,8 @@ app.get("/api/me", auth, async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch current user" });
+    console.error('Error in /api/me:', err);
+    res.status(500).json({ error: "Failed to fetch user profile" });
   }
 });
 
@@ -467,24 +419,21 @@ app.get("/api/me/rsvps", auth, async (req, res) => {
 
     let userId = authUserId;
 
-    // If this looks like an Auth0 ID, find the corresponding User record
-    if (authUserId.startsWith('auth0|') || authUserId.includes('|')) {
-      let user;
-      // Use the mongoUser from auth middleware if available
-      if (req.user?.mongoUser) {
-        user = req.user.mongoUser;
+    // Use mongoUser from auth middleware if available (preferred)
+    if (req.user?.mongoUser) {
+      userId = req.user.mongoUser._id;
+    } else {
+      // Fallback: look up by user ID (should be MongoDB ObjectId now)
+      if (mongoose.Types.ObjectId.isValid(authUserId)) {
+        userId = authUserId;
       } else {
-        // Fallback to database lookup
-        const User = require('./models/User');
-        user = await User.findOne({ auth0Id: authUserId });
+        // Legacy: might be Auth0 ID, try auth0Id lookup
+        const user = await User.findOne({ auth0Id: authUserId });
+        if (!user) {
+          return res.status(404).json({ error: "User not found" });
+        }
+        userId = user._id;
       }
-      
-      if (!user) {
-        // No user record found for this Auth0 ID - return empty RSVPs
-        console.log(`No User record found for Auth0 ID: ${authUserId}`);
-        return res.json([]);
-      }
-      userId = user._id;
     }
 
     const rsvps = await Rsvp.find({ user: userId })
@@ -528,26 +477,33 @@ app.post(
       let userId = authUserId;
       let foundUser = null;
 
-      // If this looks like an Auth0 ID, find the corresponding User record
-      if (authUserId.startsWith('auth0|') || authUserId.includes('|')) {
-        // Use the mongoUser from auth middleware if available
-        if (req.user?.mongoUser) {
-          foundUser = req.user.mongoUser;
-          userId = foundUser._id;
-        } else {
-          // Fallback to database lookup
-          foundUser = await User.findOne({ auth0Id: authUserId }).select("_id username email year major");
-          if (!foundUser) {
-            return res.status(404).json({ error: "User profile not found. Please try logging in again." });
-          }
-          userId = foundUser._id;
-        }
+      // Use mongoUser from auth middleware if available (preferred)
+      if (req.user?.mongoUser) {
+        foundUser = req.user.mongoUser;
+        userId = foundUser._id;
       } else {
-        // Direct MongoDB ObjectId lookup
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
-          return res.status(400).json({ error: "Invalid user ID" });
+        // Fallback: look up by user ID (should be MongoDB ObjectId now)
+        if (mongoose.Types.ObjectId.isValid(authUserId)) {
+          foundUser = await User.findById(authUserId).select("_id username email year major");
+        } else {
+          // Legacy: might be Auth0 ID, try auth0Id lookup
+          foundUser = await User.findOne({ auth0Id: authUserId }).select("_id username email year major");
+          if (foundUser) {
+            userId = foundUser._id;
+          }
         }
-        foundUser = await User.findById(userId).select("_id username email year major");
+      }
+
+      if (!foundUser) {
+        return res.status(404).json({ error: "User profile not found. Please try signing out and back in." });
+      }
+
+      // Enforce profile completion for RSVPs
+      if (!foundUser.year || !foundUser.major) {
+        return res.status(400).json({ 
+          error: "Please complete your profile (year and major) before RSVPing to events.",
+          profileIncomplete: true
+        });
       }
 
       const foundEvent = await Event.findById(eventId).select("_id title");

@@ -45,12 +45,16 @@ export default function Profile() {
         console.error("Failed to load profile:", err);
         
         // Provide more specific error messages
-        if (err.message.includes("User not found")) {
-          setError("Your profile is being created. Please try refreshing the page in a moment.");
+        if (err.message.includes("User profile not found")) {
+          setError("We're setting up your profile. Please try refreshing the page, or sign out and back in if this continues.");
         } else if (err.message.includes("Unable to create user profile")) {
-          setError("There was an issue setting up your profile. Please contact support.");
+          setError("There was an issue creating your profile. Please try signing out and back in, or contact support if this continues.");
+        } else if (err.message.includes("Authentication required")) {
+          setError("Please sign in again to access your profile.");
+          // Redirect to login after a moment
+          setTimeout(() => navigate("/login"), 2000);
         } else {
-          setError(err.message);
+          setError(`Profile loading failed: ${err.message}`);
         }
       } finally {
         setLoading(false);

@@ -70,6 +70,16 @@
 			"label": "Stage fixes",
 			"type": "shell",
 			"command": "git add ."
+		},
+		{
+			"label": "Switch to development branch",
+			"type": "shell",
+			"command": "git checkout jakeScrape"
+		},
+		{
+			"label": "Commit critical fixes",
+			"type": "shell",
+			"command": "git add .; git commit -m 'fix: critical auth issues - silent failures, user ID consistency, profile enforcement'"
 		}
 	]
 }
