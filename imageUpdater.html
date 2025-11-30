@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Update MyMusicCity Images</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        .button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        .button:hover { background: #0056b3; }
+        .result { margin-top: 20px; padding: 15px; border-radius: 5px; white-space: pre-wrap; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+    <h1>🎵 MyMusicCity Image Updater</h1>
+    
+    <p>This will update all events in the database to use proper music-themed images instead of random stock photos.</p>
+    
+    <label>
+        App URL: 
+        <input type="text" id="appUrl" value="https://my-music-city.onrender.com" style="width: 300px; padding: 5px;">
+    </label>
+    <br><br>
+    
+    <button class="button" onclick="testConnection()">🔍 Test Connection</button>
+    <button class="button" onclick="updateImages()">🖼️ Update Images</button>
+    
+    <div id="result"></div>
+
+    <script>
+        async function testConnection() {
+            const url = document.getElementById('appUrl').value;
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.innerHTML = 'Testing connection...';
+            
+            try {
+                const response = await fetch(url + '/api/health');
+                const data = await response.json();
+                
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = `✅ Connection successful!\n\nHealth check response:\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ Connection failed: ${error.message}\n\nMake sure:\n1. The app URL is correct\n2. The app is deployed and running\n3. Try different URLs like:\n   - https://mymusiccity.onrender.com\n   - https://my-music-city-app.onrender.com`;
+            }
+        }
+        
+        async function updateImages() {
+            const url = document.getElementById('appUrl').value;
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.innerHTML = 'Updating images...';
+            
+            try {
+                const response = await fetch(url + '/api/admin/update-all-images', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `✅ Success!\n\n📸 Updated ${data.updatedCount} events with new images\n\n💭 ${data.message}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `❌ Update failed:\n\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

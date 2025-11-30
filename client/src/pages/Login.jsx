@@ -1,53 +1,95 @@
-import React, { useState, useContext } from "react";
+import React, { useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { loginUser, signupUser } from "../api";
+import { useAuth0 } from "@auth0/auth0-react";
 import "../styles.css";
 import { AuthContext } from "../AuthContext";
 
 export default function Login() {
   const navigate = useNavigate();
-  const [isSignup, setIsSignup] = useState(false);
-  const [form, setForm] = useState({
-    username: "",
-    email: "",
-    password: "",
-    year: "",
-    major: "",
-  });
-  const [error, setError] = useState("");
-  const { setToken, setUser } = useContext(AuthContext);
-  const [loading, setLoading] = useState(false);
+  const { loginWithRedirect, isAuthenticated, isLoading, error } = useAuth0();
+  const { token } = useContext(AuthContext);
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const res = isSignup
-        ? await signupUser(form.username, form.email, form.password, form.year, form.major)
-        : await loginUser(form.email, form.password);
-      
-      if (isSignup) {
-        // After successful signup, show success message
-        setError("");
-        alert("Account created successfully! You can now log in.");
-        setIsSignup(false);
-        setLoading(false);
-        return;
-      }
-
-      if (res?.token) {
-        localStorage.setItem("token", res.token);
-        setToken(res.token);
-      }
-      if (res?.user) {
-        localStorage.setItem("user", JSON.stringify(res.user));
-        setUser(res.user);
-        localStorage.setItem("justLoggedIn", "true");
-      }
-
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && token) {
       navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, token, navigate]);
+
+  const handleLogin = () => {
+    loginWithRedirect();
+  };
+
+  if (isLoading) {
+    return (
+      <div className="login-page">
+        <div className="login-card">
+          <div className="loading-spinner">
+            <div className="spinner"></div>
+            <p>Loading...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="login-page">
+        <div className="login-card">
+          <div className="error-message">
+            <h2>Authentication Error</h2>
+            <p>{error.message}</p>
+            <button className="auth-button" onClick={() => window.location.reload()}>
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="login-page">
+      <div className="login-card">
+        <div className="login-header">
+          <h1>Welcome to MyMusicCity</h1>
+          <p className="login-subtitle">Discover Nashville's Music Scene</p>
+        </div>
+        
+        <div className="login-content">
+          <div className="vanderbilt-notice">
+            <h3>🎓 Vanderbilt Students Only</h3>
+            <p>Access is restricted to students with @vanderbilt.edu email addresses</p>
+          </div>
+          
+          <div className="auth-section">
+            <button className="auth-button primary" onClick={handleLogin}>
+              🔐 Sign In with Vanderbilt Account
+            </button>
+            
+            <div className="auth-info">
+              <p>Secure authentication powered by Auth0</p>
+              <p className="privacy-note">
+                We'll redirect you to a secure login page. Your credentials are never stored on our servers.
+              </p>
+            </div>
+          </div>
+          
+          <div className="features-preview">
+            <h4>What you can do:</h4>
+            <ul>
+              <li>🎵 Discover live music events</li>
+              <li>📅 RSVP to concerts and shows</li>
+              <li>💬 Comment and connect with fellow music lovers</li>
+              <li>📍 Find events by location and genre</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
     } catch (err) {
       console.error("Login/signup error:", err);
       setError(err.message || "Something went wrong");

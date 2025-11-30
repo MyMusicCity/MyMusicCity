@@ -6,6 +6,13 @@ const API_BASE = (
   process.env.REACT_APP_API_URL || (typeof window !== "undefined" && window.location && window.location.origin) || ""
 ).replace(/\/$/, "");
 
+// Helper to get Auth0 token from the current context
+let getAccessTokenSilently = null;
+
+export function setAuth0TokenProvider(tokenProvider) {
+  getAccessTokenSilently = tokenProvider;
+}
+
 // Small helper to avoid fetch hanging indefinitely in environments that return
 // an HTML auth page or otherwise stall. Returns a Response or throws on abort.
 async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
@@ -25,6 +32,33 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
     }
     throw err;
   }
+}
+
+// Helper to get authorization headers with Auth0 token
+async function getAuthHeaders() {
+  const headers = { "Content-Type": "application/json" };
+  
+  // Try Auth0 token first
+  if (getAccessTokenSilently) {
+    try {
+      const token = await getAccessTokenSilently();
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.warn('Failed to get Auth0 token:', error);
+    }
+  }
+  
+  // Fallback to localStorage token for backward compatibility
+  if (!headers.Authorization) {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  
+  return headers;
 }
 
 // --- Safe health check (won't break UI) ---
@@ -56,11 +90,7 @@ export async function getEventById(id) {
 
 export async function postRsvp(eventId, status = "going") {
   if (!API_BASE) throw new Error("No API base URL configured");
-  // Prefer Authorization header with JWT when available (AuthContext stores token in localStorage)
-  // Follow same approach as other client API helpers (direct localStorage access).
-  const token = localStorage.getItem("token");
-  const headers = { "Content-Type": "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const headers = await getAuthHeaders();
 
   const res = await fetchWithTimeout(`${API_BASE}/api/rsvps`, {
     method: "POST",
@@ -88,10 +118,8 @@ export async function getUserRsvps(userId) {
     if (!res.ok) throw new Error(`User RSVPs failed: ${res.status}`);
     return res.json();
   }
-  // If no userId provided, prefer the authenticated /api/me/rsvps endpoint using stored token
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  const headers = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
+  // If no userId provided, prefer the authenticated /api/me/rsvps endpoint using Auth0 token
+  const headers = await getAuthHeaders();
   const res = await fetchWithTimeout(`${API_BASE}/api/me/rsvps`, { credentials: "include", headers });
   if (!res.ok) throw new Error(`User RSVPs (me) failed: ${res.status}`);
   return res.json();
@@ -110,9 +138,7 @@ export async function getEventRsvps(eventId) {
 
 export async function deleteRsvp(eventId) {
   if (!API_BASE) throw new Error("No API base URL configured");
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  const headers = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const headers = await getAuthHeaders();
 
   const res = await fetchWithTimeout(`${API_BASE}/api/rsvps/event/${eventId}`, {
     method: "DELETE",
@@ -198,12 +224,11 @@ export async function getComments(eventId) {
 }
 
 export async function postComment(eventId, text) {
+  const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE}/api/comments`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-    },
+    headers,
+    credentials: "include",
     body: JSON.stringify({ eventId, text }),
   });
   if (!res.ok) throw new Error("Failed to post comment");
@@ -211,11 +236,11 @@ export async function postComment(eventId, text) {
 }
 
 export async function deleteComment(commentId) {
+  const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE}/api/comments/${commentId}`, {
     method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-    }
+    headers,
+    credentials: "include"
   });
   if (!res.ok) throw new Error("Failed to delete comment");
   return res.json();
@@ -224,9 +249,7 @@ export async function deleteComment(commentId) {
 export async function postReply(commentId, eventId, text) {
   // Keep URL consistent with other API endpoints (mounted under /api)
   // and include the Authorization header so auth middleware can validate the user.
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  const headers = { "Content-Type": "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const headers = await getAuthHeaders();
 
   const res = await fetch(`${API_BASE}/api/comments/${commentId}/reply`, {
     method: "POST",
