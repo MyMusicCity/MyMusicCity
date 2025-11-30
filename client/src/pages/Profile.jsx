@@ -149,8 +149,15 @@ export default function Profile() {
     } catch (err) {
       console.error('Failed to cleanup legacy accounts:', err);
       
+      // Check if it's an authentication error
+      const isAuthError = err.message.includes('Authorization') || err.message.includes('Unauthorized') || err.message.includes('Missing Authorization header');
+      
       // If regular cleanup fails, offer emergency cleanup
-      if (window.confirm(`Regular cleanup failed: ${err.message}\n\nTry emergency cleanup? This will delete ALL accounts with your email and let you start fresh.`)) {
+      const message = isAuthError 
+        ? `Authentication failed for regular cleanup.\n\nTry emergency cleanup? This will delete ALL accounts with your email and let you start fresh.`
+        : `Regular cleanup failed: ${err.message}\n\nTry emergency cleanup? This will delete ALL accounts with your email and let you start fresh.`;
+        
+      if (window.confirm(message)) {
         handleEmergencyCleanup();
       } else {
         setError(`Failed to cleanup accounts: ${err.message}`);
@@ -164,9 +171,13 @@ export default function Profile() {
     try {
       setDeleting(true);
       
-      const email = authUser?.email;
+      let email = authUser?.email;
       if (!email) {
-        throw new Error('No email found for emergency cleanup');
+        // If no email from authUser, prompt user to enter it
+        email = prompt('Enter your email address for emergency cleanup:');
+        if (!email) {
+          throw new Error('Email is required for emergency cleanup');
+        }
       }
 
       const response = await fetch(`${process.env.REACT_APP_API_URL || window.location.origin}/api/emergency-cleanup`, {
@@ -177,11 +188,24 @@ export default function Profile() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to perform emergency cleanup');
+        let errorMessage = 'Failed to perform emergency cleanup';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If JSON parsing fails, use the response status
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch {
+        throw new Error('Server returned invalid response format');
+      }
+      
       alert(`Emergency cleanup successful! Removed ${result.deletedAccounts} accounts. Please sign out and sign back in to create a fresh account.`);
       logout();
       navigate("/");

@@ -458,6 +458,13 @@ app.delete("/api/me/account", auth, async (req, res) => {
 app.post('/api/cleanup-legacy', auth, async (req, res) => {
   try {
     const authUser = req.user;
+    if (!authUser || !authUser.email) {
+      return res.status(401).json({ 
+        error: 'Missing Authorization header',
+        details: 'Authentication required for legacy cleanup. Try emergency cleanup instead.'
+      });
+    }
+    
     const userEmail = authUser.email;
     
     console.log('🧹 Cleaning up legacy accounts for email:', userEmail);
@@ -500,6 +507,12 @@ app.post('/api/emergency-cleanup', async (req, res) => {
     
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
     }
     
     console.log('🚨 Emergency cleanup for email:', email);
