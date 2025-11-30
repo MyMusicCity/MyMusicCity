@@ -156,47 +156,6 @@ export default function Profile() {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    if (!window.confirm("Are you sure you want to delete your account? This action cannot be undone and will remove all your RSVPs.")) {
-      return;
-    }
-    
-    if (!window.confirm("This will permanently delete your account and all associated data. Are you absolutely sure?")) {
-      return;
-    }
-
-    try {
-      setDeleting(true);
-      const headers = { "Content-Type": "application/json" };
-      
-      // Get Auth0 token
-      if (authUser?.getAccessTokenSilently) {
-        const token = await authUser.getAccessTokenSilently();
-        headers.Authorization = `Bearer ${token}`;
-      }
-
-      const response = await fetch(`${process.env.REACT_APP_API_URL || window.location.origin}/api/me/account`, {
-        method: 'DELETE',
-        headers,
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete account');
-      }
-
-      alert('Account successfully deleted. You will now be signed out.');
-      logout();
-      navigate("/");
-    } catch (err) {
-      console.error('Failed to delete account:', err);
-      setError(`Failed to delete account: ${err.message}`);
-    } finally {
-      setDeleting(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="profile-page">
