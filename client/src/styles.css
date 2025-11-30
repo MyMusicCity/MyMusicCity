@@ -116,7 +116,7 @@ body {
 
 .user-dropdown-menu {
   position: absolute;
-  top: calc(100% + 0.5rem);
+  top: calc(100% + 0.25rem);
   right: 0;
   background: white;
   border-radius: 12px;
@@ -124,6 +124,17 @@ body {
   min-width: 200px;
   z-index: 1000;
   animation: dropdownSlide 0.2s ease-out;
+}
+
+/* Add invisible bridge to prevent dropdown from closing */
+.user-dropdown-menu::before {
+  content: '';
+  position: absolute;
+  top: -0.25rem;
+  right: 0;
+  left: 0;
+  height: 0.25rem;
+  background: transparent;
 }
 
 .user-info {

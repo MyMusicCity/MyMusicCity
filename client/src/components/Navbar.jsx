@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { FaHeart, FaUser, FaSignOutAlt, FaChevronDown } from "react-icons/fa";
 import { FaCommentDots } from "react-icons/fa6";
@@ -8,6 +8,20 @@ import "../styles.css";
 export default function Navbar() {
   const { logout, user } = useContext(AuthContext);
   const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownTimeoutRef = useRef(null);
+
+  const handleMouseEnter = () => {
+    if (dropdownTimeoutRef.current) {
+      clearTimeout(dropdownTimeoutRef.current);
+    }
+    setShowDropdown(true);
+  };
+
+  const handleMouseLeave = () => {
+    dropdownTimeoutRef.current = setTimeout(() => {
+      setShowDropdown(false);
+    }, 300); // 300ms delay before closing
+  };
 
   const handleLogout = () => {
     logout();
@@ -23,7 +37,7 @@ export default function Navbar() {
         </Link>
         
         {/* User profile dropdown */}
-        <div className="user-dropdown" onMouseEnter={() => setShowDropdown(true)} onMouseLeave={() => setShowDropdown(false)}>
+        <div className="user-dropdown" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
           <div className="user-menu-trigger">
             {user?.picture ? (
               <img src={user.picture} alt={user.name} className="user-avatar" />
@@ -34,7 +48,7 @@ export default function Navbar() {
           </div>
           
           {showDropdown && (
-            <div className="user-dropdown-menu">
+            <div className="user-dropdown-menu" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
               <div className="user-info">
                 <div className="user-name">{user?.name || user?.username}</div>
                 <div className="user-email">{user?.email}</div>
