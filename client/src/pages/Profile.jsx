@@ -40,12 +40,12 @@ export default function Profile() {
         setError(null);
         const userData = await getCurrentUser();
         setProfile(userData);
-        // Always start with blank form - don't pre-fill from any source
+        // Keep form fields completely blank for user input
         setEditValues({
-          username: userData.username || "",
-          email: userData.email || "",
-          year: userData.year || "",
-          major: userData.major || "",
+          username: "",
+          email: "",
+          year: "",
+          major: "",
         });
       } catch (err) {
         console.error("Failed to load profile:", err);
@@ -95,6 +95,8 @@ export default function Profile() {
       const updatedUser = await updateUserProfile(editValues);
       setProfile(updatedUser);
       setError("");
+      // Refresh page on successful save
+      window.location.reload();
     } catch (err) {
       console.error("Failed to update profile:", err);
       if (err.message.includes("USERNAME_TAKEN")) {
@@ -267,6 +269,7 @@ export default function Profile() {
               Sign Out and Try Again
             </button>
             
+            {/* Always show cleanup buttons in error state */}
             <div className="account-management">
               <button 
                 className="cleanup-account-btn"
@@ -385,25 +388,27 @@ export default function Profile() {
             Sign Out
           </button>
           
-          <div className="account-management">
-            <button 
-              className="cleanup-account-btn"
-              onClick={handleCleanupLegacy}
-              disabled={deleting}
-              title="Clean up conflicting legacy account data from before Auth0 migration"
-            >
-              {deleting ? "Cleaning..." : "🧹 Clean Up Account"}
-            </button>
-            
-            <button 
-              className="delete-account-btn" 
-              onClick={handleDeleteAccount}
-              disabled={deleting}
-              title="Permanently delete your account and all data"
-            >
-              {deleting ? 'Deleting...' : '🗑️ Delete My Account'}
-            </button>
-          </div>
+          {(error || profileIncomplete) && (
+            <div className="account-management">
+              <button 
+                className="cleanup-account-btn"
+                onClick={handleCleanupLegacy}
+                disabled={deleting}
+                title="Clean up conflicting legacy account data from before Auth0 migration"
+              >
+                {deleting ? "Cleaning..." : "🧹 Clean Up Account"}
+              </button>
+              
+              <button 
+                className="delete-account-btn" 
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                title="Permanently delete your account and all data"
+              >
+                {deleting ? 'Deleting...' : '🗑️ Delete My Account'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
