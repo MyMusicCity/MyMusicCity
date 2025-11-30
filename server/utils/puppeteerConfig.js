@@ -1,7 +1,15 @@
 // server/utils/puppeteerConfig.js
-// Centralized Puppeteer configuration for production environments
+// Centralized browser configuration for production environments
 
 const puppeteer = require('puppeteer');
+let playwright = null;
+
+// Try to load playwright as fallback
+try {
+  playwright = require('playwright');
+} catch (e) {
+  // Playwright not available
+}
 
 /**
  * Get optimized Puppeteer launch options for production environments
@@ -63,41 +71,105 @@ function getPuppeteerConfig() {
  * Launch Puppeteer browser with optimized configuration and fallbacks
  */
 async function launchBrowser() {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  // Try Method 1: Use bundled Chrome from Puppeteer
   try {
-    const config = getPuppeteerConfig();
-    console.log('Launching Puppeteer with config:', JSON.stringify(config, null, 2));
-    return await puppeteer.launch(config);
-  } catch (error) {
-    console.error('Failed to launch Puppeteer:', error.message);
+    const config = {
+      headless: 'new',
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu'
+      ]
+    };
     
-    // Fallback 1: Try without executable path
-    console.log('Trying fallback configuration without executable path...');
+    console.log('Attempting to use bundled Chrome...');
+    return await puppeteer.launch(config);
+  } catch (error1) {
+    console.log('Bundled Chrome failed:', error1.message);
+  }
+
+  // Try Method 2: Use system Chrome paths
+  if (isProduction) {
+    const systemPaths = [
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium'
+    ];
+    
+    for (const path of systemPaths) {
+      try {
+        const fs = require('fs');
+        if (fs.existsSync(path)) {
+          console.log(`Attempting to use system Chrome at: ${path}`);
+          return await puppeteer.launch({
+            headless: 'new',
+            executablePath: path,
+            args: [
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--disable-gpu'
+            ]
+          });
+        }
+      } catch (error) {
+        console.log(`Failed to use Chrome at ${path}:`, error.message);
+        continue;
+      }
+    }
+  }
+
+  // Try Method 3: Environment variable path
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
     try {
+      console.log(`Attempting to use env Chrome at: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
       return await puppeteer.launch({
         headless: 'new',
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
         args: [
-          '--no-sandbox', 
+          '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-gpu'
         ]
       });
-    } catch (error2) {
-      console.error('Fallback 1 failed:', error2.message);
-      
-      // Fallback 2: Minimal configuration
-      console.log('Trying minimal configuration...');
-      try {
-        return await puppeteer.launch({
-          headless: 'new',
-          args: ['--no-sandbox', '--disable-setuid-sandbox']
-        });
-      } catch (error3) {
-        console.error('All Puppeteer launch attempts failed:', error3.message);
-        throw new Error('Could not launch browser with any configuration');
-      }
+    } catch (error) {
+      console.log('Environment Chrome failed:', error.message);
     }
   }
+  
+  // Try Method 4: Playwright as fallback
+  if (playwright) {
+    try {
+      console.log('Attempting to use Playwright Chromium...');
+      const browser = await playwright.chromium.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu'
+        ]
+      });
+      
+      // Wrap playwright browser to work with puppeteer-like interface
+      return {
+        ...browser,
+        newPage: async () => {
+          const context = await browser.newContext();
+          return await context.newPage();
+        }
+      };
+    } catch (error) {
+      console.log('Playwright failed:', error.message);
+    }
+  }
+  
+  throw new Error('Could not launch browser with any available method. Chrome/Chromium not found.');
 }
 
 module.exports = {

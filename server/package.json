@@ -9,7 +9,9 @@
     "test": "jest",
     "scrape": "node scraping/scrapeNashvilleScene.js",
     "scrape:all": "node scraping/scrapeAll.js",
-    "postinstall": "if [ \"$PUPPETEER_SKIP_CHROMIUM_DOWNLOAD\" != \"true\" ]; then npx puppeteer browsers install chrome || echo 'Puppeteer browser install failed'; fi"
+    "install-chrome": "npx puppeteer browsers install chrome",
+    "install-playwright": "npx playwright install chromium",
+    "postinstall": "npm run install-chrome || npm run install-playwright || echo 'Browser install failed, will try system browsers'"
   },
   "dependencies": {
     "axios": "^1.12.2",
@@ -22,6 +24,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.2",
     "nodemailer": "^7.0.11",
+    "playwright": "^1.47.0",
     "puppeteer": "^24.25.0"
   },
   "devDependencies": {
