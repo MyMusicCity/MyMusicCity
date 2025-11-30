@@ -55,6 +55,21 @@
 			"label": "Commit tasks.json",
 			"type": "shell",
 			"command": "git add .vscode/tasks.json; git commit -m 'add tasks.json'"
+		},
+		{
+			"label": "Push to main",
+			"type": "shell",
+			"command": "git push origin main"
+		},
+		{
+			"label": "Switch to jakeScrape",
+			"type": "shell",
+			"command": "git checkout jakeScrape"
+		},
+		{
+			"label": "Stage fixes",
+			"type": "shell",
+			"command": "git add ."
 		}
 	]
 }

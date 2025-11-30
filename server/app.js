@@ -332,6 +332,58 @@ app.get("/api/me", auth, async (req, res) => {
           .select("-password")
           .lean()
           .exec();
+          
+        // If still no user found, try to create one now
+        if (!user) {
+          try {
+            const User = require('./models/User');
+            
+            // Import the same function used in auth middleware
+            const findOrCreateAuth0User = async (auth0Id, email) => {
+              // Find by email first (for existing users)
+              let existingUser = await User.findOne({ email });
+              if (existingUser) {
+                existingUser.auth0Id = auth0Id;
+                await existingUser.save();
+                return existingUser;
+              }
+              
+              // Create new user
+              let username = email?.split('@')[0] || 'user';
+              let baseUsername = username;
+              let counter = 1;
+              while (await User.findOne({ username })) {
+                username = `${baseUsername}${counter}`;
+                counter++;
+                if (counter > 100) {
+                  username = `${baseUsername}_${Date.now()}`;
+                  break;
+                }
+              }
+              
+              const newUser = new User({
+                username,
+                email,
+                password: 'auth0-user',
+                auth0Id,
+                year: null,
+                major: null
+              });
+              
+              await newUser.save();
+              return newUser;
+            };
+            
+            const createdUser = await findOrCreateAuth0User(authUserId, req.user?.email);
+            user = createdUser.toObject();
+            delete user.password;
+          } catch (createError) {
+            console.error('Failed to create user record:', createError);
+            return res.status(500).json({ 
+              error: "Unable to create user profile. Please contact support." 
+            });
+          }
+        }
       }
     } else {
       // Direct MongoDB ObjectId lookup

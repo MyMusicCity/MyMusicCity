@@ -53,7 +53,20 @@ async function findOrCreateAuth0User(auth0Id, email) {
     }
 
     // Create new user for Auth0
-    const username = email?.split('@')[0] || 'user';
+    let username = email?.split('@')[0] || 'user';
+    
+    // Handle username conflicts by appending numbers
+    let baseUsername = username;
+    let counter = 1;
+    while (await User.findOne({ username })) {
+      username = `${baseUsername}${counter}`;
+      counter++;
+      if (counter > 100) { // Prevent infinite loop
+        username = `${baseUsername}_${Date.now()}`;
+        break;
+      }
+    }
+
     const newUser = new User({
       username: username,
       email: email,

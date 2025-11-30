@@ -43,7 +43,15 @@ export default function Profile() {
         });
       } catch (err) {
         console.error("Failed to load profile:", err);
-        setError(err.message);
+        
+        // Provide more specific error messages
+        if (err.message.includes("User not found")) {
+          setError("Your profile is being created. Please try refreshing the page in a moment.");
+        } else if (err.message.includes("Unable to create user profile")) {
+          setError("There was an issue setting up your profile. Please contact support.");
+        } else {
+          setError(err.message);
+        }
       } finally {
         setLoading(false);
       }
@@ -115,11 +123,16 @@ export default function Profile() {
       <div className="profile-page">
         <div className="profile-card">
           <div className="error-message">
-            <FaExclamationTriangle /> Error loading profile: {error}
+            <FaExclamationTriangle /> {error}
           </div>
-          <button onClick={() => window.location.reload()} className="retry-btn">
-            Retry
-          </button>
+          <div className="profile-actions">
+            <button onClick={() => window.location.reload()} className="retry-btn">
+              Refresh Page
+            </button>
+            <button onClick={handleLogout} className="logout-btn">
+              Sign Out and Try Again
+            </button>
+          </div>
         </div>
       </div>
     );
