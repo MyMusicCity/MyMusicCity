@@ -10,6 +10,51 @@
 			"label": "Stage Auth0 fixes",
 			"type": "shell",
 			"command": "git add ."
+		},
+		{
+			"label": "Commit Auth0 fixes",
+			"type": "shell",
+			"command": "git commit -m \"fix: complete Auth0 user registration system integration\n\n- Auth middleware now auto-creates MongoDB User records for Auth0 users\n- Added findOrCreate logic with email fallback for existing users\n- Updated RSVP endpoints to use newly created User records\n- Added profile completion API endpoint for year/major updates\n- Completely rewrote Profile page for Auth0 integration\n- Added profile completion status and editing capabilities\n- Improved error handling and user experience\n- Added comprehensive CSS for new profile features\n\nResolves Auth0 user RSVP issues and profile management\""
+		},
+		{
+			"label": "Commit Auth0 fixes",
+			"type": "shell",
+			"command": "git commit -m \"fix: complete Auth0 user registration system integration\""
+		},
+		{
+			"label": "Check status",
+			"type": "shell",
+			"command": "git status"
+		},
+		{
+			"label": "Commit changes",
+			"type": "shell",
+			"command": "git commit -m \"fix: Auth0 user registration and profile system\""
+		},
+		{
+			"label": "Commit fixes",
+			"type": "shell",
+			"command": "git commit -m \"fix: Auth0 user registration fixes\""
+		},
+		{
+			"label": "Commit auth0 fixes",
+			"type": "shell",
+			"command": "git commit -m 'fix: complete auth0 integration'"
+		},
+		{
+			"label": "Push to jakeScrape",
+			"type": "shell",
+			"command": "git push origin jakeScrape"
+		},
+		{
+			"label": "Switch to main",
+			"type": "shell",
+			"command": "git checkout main"
+		},
+		{
+			"label": "Commit tasks.json",
+			"type": "shell",
+			"command": "git add .vscode/tasks.json; git commit -m 'add tasks.json'"
 		}
 	]
 }
