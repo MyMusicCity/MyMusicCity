@@ -150,46 +150,6 @@ export default function Profile() {
     }
   };
 
-  const handleCleanupLegacy = async () => {
-    if (!window.confirm("This will clean up any old account data that may be causing conflicts. This is recommended for accounts created before our Auth0 migration. Continue?")) {
-      return;
-    }
-
-    try {
-      setDeleting(true);
-      const headers = { "Content-Type": "application/json" };
-      
-      if (authUser?.getAccessTokenSilently) {
-        const token = await authUser.getAccessTokenSilently();
-        headers.Authorization = `Bearer ${token}`;
-      }
-
-      const response = await fetch(`${process.env.REACT_APP_API_URL || window.location.origin}/api/cleanup-legacy`, {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to cleanup legacy accounts');
-      }
-
-      const result = await response.json();
-      if (result.deletedAccounts > 0) {
-        alert(`Cleanup successful! Removed ${result.deletedAccounts} conflicting accounts. Please refresh the page to see if your issues are resolved.`);
-        window.location.reload();
-      } else {
-        alert('No conflicting accounts found. Your account appears to be clean.');
-      }
-    } catch (err) {
-      console.error('Failed to cleanup legacy accounts:', err);
-      setError(`Failed to cleanup accounts: ${err.message}`);
-    } finally {
-      setDeleting(false);
-    }
-  };
-
   const handleDeleteAccount = async () => {
     if (!window.confirm("Are you sure you want to delete your account? This action cannot be undone and will remove all your RSVPs.")) {
       return;
