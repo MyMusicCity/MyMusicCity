@@ -800,6 +800,27 @@ select {
   background: #967c56;
 }
 
+.delete-account-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-top: 0.5rem;
+  margin-left: 0.5rem;
+}
+
+.delete-account-btn:hover:not(:disabled) {
+  background: #c82333;
+}
+
+.delete-account-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* --- LOGIN PAGE --- */
 .login-page {
   min-height: 100vh;

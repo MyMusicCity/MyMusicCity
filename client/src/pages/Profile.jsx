@@ -13,6 +13,8 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   
   const [editing, setEditing] = useState({
     year: false,
@@ -48,13 +50,14 @@ export default function Profile() {
         if (err.message.includes("User profile not found")) {
           setError("We're setting up your profile. Please try refreshing the page, or sign out and back in if this continues.");
         } else if (err.message.includes("Unable to create user profile")) {
-          setError("There was an issue creating your profile. Please try signing out and back in, or contact support if this continues.");
+          setError("There was an issue creating your profile. This may be due to a data conflict. Please contact support with this exact message: " + err.message);
         } else if (err.message.includes("Authentication required")) {
           setError("Please sign in again to access your profile.");
-          // Redirect to login after a moment
           setTimeout(() => navigate("/login"), 2000);
+        } else if (err.message.includes("Username conflict") || err.message.includes("Email already exists")) {
+          setError("Account conflict detected: " + err.message + " Please contact support for assistance.");
         } else {
-          setError(`Profile loading failed: ${err.message}`);
+          setError(`Profile loading failed: ${err.message}. Please contact support if this continues.`);
         }
       } finally {
         setLoading(false);
@@ -110,6 +113,89 @@ export default function Profile() {
   const handleLogout = () => {
     logout();
     navigate("/");
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm("Are you sure you want to delete your account? This action cannot be undone and will remove all your RSVPs.")) {
+      return;
+    }
+    
+    if (!window.confirm("This will permanently delete your account and all associated data. Are you absolutely sure?")) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      const headers = { "Content-Type": "application/json" };
+      
+      // Get Auth0 token using the authUser context
+      if (authUser && typeof authUser.getAccessTokenSilently === 'function') {
+        const token = await authUser.getAccessTokenSilently();
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const API_BASE = process.env.REACT_APP_API_URL || window.location.origin;
+      const response = await fetch(`${API_BASE}/api/me/account`, {
+        method: 'DELETE',
+        headers,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete account');
+      }
+
+      alert('Account successfully deleted. You will now be signed out.');
+      logout();
+      navigate("/");
+    } catch (err) {
+      console.error('Failed to delete account:', err);
+      setError(`Failed to delete account: ${err.message}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm("Are you sure you want to delete your account? This action cannot be undone and will remove all your RSVPs.")) {
+      return;
+    }
+    
+    if (!window.confirm("This will permanently delete your account and all associated data. Are you absolutely sure?")) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      const headers = { "Content-Type": "application/json" };
+      
+      // Get Auth0 token
+      if (authUser?.getAccessTokenSilently) {
+        const token = await authUser.getAccessTokenSilently();
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${process.env.REACT_APP_API_URL || window.location.origin}/api/me/account`, {
+        method: 'DELETE',
+        headers,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete account');
+      }
+
+      alert('Account successfully deleted. You will now be signed out.');
+      logout();
+      navigate("/");
+    } catch (err) {
+      console.error('Failed to delete account:', err);
+      setError(`Failed to delete account: ${err.message}`);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   if (loading) {
@@ -265,6 +351,13 @@ export default function Profile() {
         <div className="profile-actions">
           <button className="logout-btn" onClick={handleLogout}>
             Sign Out
+          </button>
+          <button 
+            className="delete-account-btn" 
+            onClick={handleDeleteAccount}
+            disabled={deleting}
+          >
+            {deleting ? 'Deleting...' : 'Delete Account'}
           </button>
         </div>
       </div>

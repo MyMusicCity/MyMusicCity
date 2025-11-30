@@ -411,6 +411,49 @@ app.put("/api/me/profile", auth, async (req, res) => {
   }
 });
 
+// Delete user account
+app.delete("/api/me/account", auth, async (req, res) => {
+  try {
+    const authUserId = req.user?.id;
+    if (!authUserId) return res.status(401).json({ error: "Unauthorized" });
+
+    let user;
+
+    // Get the user record
+    if (req.user?.mongoUser) {
+      user = req.user.mongoUser;
+    } else {
+      if (mongoose.Types.ObjectId.isValid(authUserId)) {
+        user = await User.findById(authUserId);
+      } else {
+        user = await User.findOne({ auth0Id: authUserId });
+      }
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    console.log(`Deleting account for user: ${user.username} (${user.email})`);
+
+    // Delete all user's RSVPs first
+    await Rsvp.deleteMany({ user: user._id });
+    console.log(`Deleted RSVPs for user: ${user.username}`);
+
+    // Delete the user record
+    await User.findByIdAndDelete(user._id);
+    console.log(`Deleted user account: ${user.username}`);
+
+    res.json({ 
+      message: "Account successfully deleted. Please also revoke access in your Auth0 account if needed." 
+    });
+
+  } catch (err) {
+    console.error('Error deleting account:', err);
+    res.status(500).json({ error: "Failed to delete account" });
+  }
+});
+
 // RSVPs for current user
 app.get("/api/me/rsvps", auth, async (req, res) => {
   try {

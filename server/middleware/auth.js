@@ -37,34 +37,53 @@ function getKey(header, callback) {
 // Find or create User record for Auth0 users
 async function findOrCreateAuth0User(auth0Id, email) {
   try {
+    console.log(`Finding/creating user for auth0Id: ${auth0Id}, email: ${email}`);
+    
     // First try to find existing user by auth0Id
     let user = await User.findOne({ auth0Id });
     if (user) {
+      console.log('Found existing user by auth0Id:', user.username);
       return user;
     }
 
     // If not found, try to find by email (for migration of existing users)
     user = await User.findOne({ email });
     if (user) {
+      console.log('Found existing user by email, adding auth0Id:', user.username);
       // Update existing user with auth0Id
       user.auth0Id = auth0Id;
-      await user.save();
-      return user;
+      try {
+        await user.save();
+        console.log('Successfully updated user with auth0Id');
+        return user;
+      } catch (saveError) {
+        console.error('Failed to save auth0Id to existing user:', saveError);
+        throw new Error(`Failed to link existing account: ${saveError.message}`);
+      }
     }
 
     // Create new user for Auth0
-    let username = email?.split('@')[0] || 'user';
+    if (!email) {
+      throw new Error('Email is required for user creation');
+    }
+    
+    let username = email.split('@')[0] || 'user';
     
     // Handle username conflicts with improved strategy
-    const baseUsername = username.toLowerCase().replace(/[^a-z0-9]/g, '') || 'user'; // Clean username
+    const baseUsername = username.toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
     let finalUsername = baseUsername;
     let counter = 1;
-    const maxAttempts = 20; // Reasonable limit
+    const maxAttempts = 50; // Increased attempts
+    
+    console.log(`Generating username starting with: ${baseUsername}`);
     
     // Check for conflicts with bounded retry
     while (counter <= maxAttempts) {
       const existingUser = await User.findOne({ username: finalUsername });
-      if (!existingUser) break;
+      if (!existingUser) {
+        console.log(`Username available: ${finalUsername}`);
+        break;
+      }
       
       finalUsername = `${baseUsername}${counter}`;
       counter++;
@@ -73,21 +92,40 @@ async function findOrCreateAuth0User(auth0Id, email) {
     // If still conflicts after maxAttempts, use timestamp
     if (counter > maxAttempts) {
       finalUsername = `${baseUsername}_${Date.now().toString().slice(-6)}`;
+      console.log(`Using timestamp fallback username: ${finalUsername}`);
     }
 
+    console.log(`Creating new user with username: ${finalUsername}, email: ${email}`);
+    
     const newUser = new User({
       username: finalUsername,
-      email: email,
+      email: email.toLowerCase().trim(),
       password: 'auth0-user', // Placeholder, not used for Auth0 users
       auth0Id: auth0Id,
       year: null,
       major: null
     });
 
-    await newUser.save();
-    return newUser;
+    try {
+      await newUser.save();
+      console.log('Successfully created new user:', finalUsername);
+      return newUser;
+    } catch (saveError) {
+      console.error('Failed to save new user:', saveError);
+      // Check for specific error types
+      if (saveError.code === 11000) {
+        if (saveError.message.includes('username')) {
+          throw new Error('Username conflict detected. Please try again.');
+        } else if (saveError.message.includes('email')) {
+          throw new Error('Email already exists. Please contact support.');
+        } else {
+          throw new Error('Duplicate data conflict. Please try again.');
+        }
+      }
+      throw new Error(`User creation failed: ${saveError.message}`);
+    }
   } catch (error) {
-    console.error('Error finding/creating Auth0 user:', error);
+    console.error('Error in findOrCreateAuth0User:', error);
     throw error;
   }
 }

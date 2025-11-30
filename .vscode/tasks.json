@@ -80,6 +80,16 @@
 			"label": "Commit critical fixes",
 			"type": "shell",
 			"command": "git add .; git commit -m 'fix: critical auth issues - silent failures, user ID consistency, profile enforcement'"
+		},
+		{
+			"label": "Switch to development",
+			"type": "shell",
+			"command": "git checkout jakeScrape"
+		},
+		{
+			"label": "Commit comprehensive fixes",
+			"type": "shell",
+			"command": "git add .; git commit -m 'fix: comprehensive profile creation debugging and account deletion'"
 		}
 	]
 }
