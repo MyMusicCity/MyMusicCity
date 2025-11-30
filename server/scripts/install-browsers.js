@@ -16,24 +16,34 @@ async function installBrowsers() {
   
   // Install Puppeteer Chrome
   try {
-    console.log('📥 Installing Puppeteer Chrome...');
-    execSync('npx puppeteer browsers install chrome', { 
-      stdio: 'inherit',
-      timeout: 120000 // 2 minutes timeout
-    });
-    console.log('✅ Puppeteer Chrome installed successfully');
+    const puppeteerPath = '/opt/render/.cache/puppeteer';
+    if (fs.existsSync(puppeteerPath)) {
+      console.log('✅ Puppeteer Chrome already installed, skipping...');
+    } else {
+      console.log('📥 Installing Puppeteer Chrome...');
+      execSync('npx puppeteer browsers install chrome', { 
+        stdio: 'inherit',
+        timeout: 120000 // 2 minutes timeout
+      });
+      console.log('✅ Puppeteer Chrome installed successfully');
+    }
   } catch (error) {
     console.log('⚠️ Puppeteer Chrome installation failed:', error.message);
   }
   
   // Install Playwright Chromium
   try {
-    console.log('📥 Installing Playwright Chromium...');
-    execSync('npx playwright install chromium', { 
-      stdio: 'inherit',
-      timeout: 120000 // 2 minutes timeout
-    });
-    console.log('✅ Playwright Chromium installed successfully');
+    const playwrightPath = '/opt/render/.cache/ms-playwright/chromium_headless_shell-1200/chrome-headless-shell-linux64/chrome-headless-shell';
+    if (fs.existsSync(playwrightPath)) {
+      console.log('✅ Playwright Chromium already installed, skipping...');
+    } else {
+      console.log('📥 Installing Playwright Chromium...');
+      execSync('npx playwright install chromium', { 
+        stdio: 'inherit',
+        timeout: 120000 // 2 minutes timeout
+      });
+      console.log('✅ Playwright Chromium installed successfully');
+    }
   } catch (error) {
     console.log('⚠️ Playwright Chromium installation failed:', error.message);
   }

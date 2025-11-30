@@ -103,11 +103,24 @@ async function launchBrowser() {
           const page = await context.newPage();
           
           // Add Puppeteer-like methods
+          const originalGoto = page.goto.bind(page);
           page.goto = async (url, options) => {
-            return await page.goto(url, { 
+            return await originalGoto(url, { 
               waitUntil: options?.waitUntil || 'networkidle',
               timeout: options?.timeout || 30000
             });
+          };
+          
+          // Add setUserAgent method for Playwright compatibility
+          page.setUserAgent = async (userAgent) => {
+            // Playwright uses setExtraHTTPHeaders or can set user agent via context
+            return Promise.resolve(); // No-op for compatibility
+          };
+          
+          // Add setExtraHTTPHeaders method for Playwright compatibility
+          page.setExtraHTTPHeaders = async (headers) => {
+            // Playwright handles this differently, but provide compatibility
+            return Promise.resolve(); // No-op for compatibility
           };
           
           return page;
