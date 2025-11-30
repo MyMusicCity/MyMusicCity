@@ -38,19 +38,32 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
 async function getAuthHeaders() {
   const headers = { "Content-Type": "application/json" };
   
+  console.log('🎫 Getting auth headers...');
+  
   // Try Auth0 token first
   if (getAccessTokenSilently) {
     try {
+      console.log('🔐 Attempting Auth0 token...');
       const token = await getAccessTokenSilently();
       if (token) {
+        console.log('✅ Got Auth0 token, length:', token.length);
         headers.Authorization = `Bearer ${token}`;
         return headers; // Return immediately with Auth0 token
+      } else {
+        console.log('⚠️ Auth0 token was empty');
       }
     } catch (error) {
-      console.warn('Failed to get Auth0 token:', error);
+      console.error('❌ Auth0 token failed:', error);
+      console.error('Auth0 error details:', {
+        name: error.name,
+        message: error.message,
+        error_description: error.error_description
+      });
       // If Auth0 is configured but fails, don't fallback to localStorage for security
-      throw new Error('Authentication required. Please sign in again.');
+      throw new Error(`Authentication required: ${error.message}. Please sign in again.`);
     }
+  } else {
+    console.log('⚠️ No Auth0 token provider available');
   }
   
   // Only use localStorage token if Auth0 is not configured
@@ -62,6 +75,30 @@ async function getAuthHeaders() {
   }
   
   return headers;
+}
+
+// Helper to handle API errors consistently
+async function handleApiError(response, context = 'API request') {
+  let errorData = null;
+  try {
+    errorData = await response.json();
+  } catch (parseError) {
+    // If response is not JSON, create a generic error
+    errorData = { 
+      error: 'RESPONSE_PARSE_ERROR', 
+      message: `${context} failed with status ${response.status}` 
+    };
+  }
+  
+  // Create comprehensive error with status and context
+  const error = new Error(errorData?.message || errorData?.error || `${context} failed`);
+  error.status = response.status;
+  error.code = errorData?.error;
+  error.action = errorData?.action;
+  error.details = errorData?.details;
+  error.response = errorData;
+  
+  throw error;
 }
 
 // --- Safe health check (won't break UI) ---
@@ -101,16 +138,12 @@ export async function postRsvp(eventId, status = "going") {
     credentials: "include",
     body: JSON.stringify({ eventId, status }),
   });
-  // Parse JSON and surface server-provided error messages when present
-  let payload;
-  try {
-    payload = await res.json();
-  } catch (e) {
-    if (!res.ok) throw new Error(`RSVP failed: status ${res.status}`);
-    return {};
+  
+  if (!res.ok) {
+    await handleApiError(res, 'RSVP creation');
   }
-  if (!res.ok) throw new Error(payload?.error || payload?.message || `RSVP failed: ${res.status}`);
-  return payload;
+  
+  return res.json();
 }
 
 export async function getUserRsvps(userId) {
@@ -303,8 +336,43 @@ export async function updateUserProfile(profileData) {
   });
   
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData?.error || `Failed to update profile: ${res.status}`);
+    await handleApiError(res, 'Profile update');
+  }
+  
+  return res.json();
+}
+
+// Delete current user account
+export async function deleteAccount() {
+  if (!API_BASE) throw new Error("No API base URL configured");
+  const headers = await getAuthHeaders();
+  
+  const res = await fetchWithTimeout(`${API_BASE}/api/me/account`, {
+    method: "DELETE",
+    headers,
+    credentials: "include",
+  });
+  
+  if (!res.ok) {
+    await handleApiError(res, 'Account deletion');
+  }
+  
+  return res.json();
+}
+
+// Emergency cleanup function
+export async function emergencyCleanup(email) {
+  if (!API_BASE) throw new Error("No API base URL configured");
+  
+  const res = await fetchWithTimeout(`${API_BASE}/api/emergency-cleanup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email }),
+  });
+  
+  if (!res.ok) {
+    await handleApiError(res, 'Emergency cleanup');
   }
   
   return res.json();

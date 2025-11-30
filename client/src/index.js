@@ -9,6 +9,13 @@ import "./styles.css"; // optional if you have this file
 // Auth0 configuration
 const domain = process.env.REACT_APP_AUTH0_DOMAIN;
 const clientId = process.env.REACT_APP_AUTH0_CLIENT_ID;
+const audience = process.env.REACT_APP_AUTH0_AUDIENCE;
+
+// Debug Auth0 configuration
+console.log('🔧 Auth0 Configuration Check:');
+console.log('- Domain:', domain || 'NOT SET');
+console.log('- Client ID:', clientId || 'NOT SET');
+console.log('- Audience:', audience || 'NOT SET');
 
 // Validate Auth0 configuration
 if (!domain || !clientId || domain.includes('your-auth0-domain') || clientId.includes('your-auth0-client-id')) {
@@ -47,8 +54,11 @@ root.render(
         clientId={clientId}
         authorizationParams={{
           redirect_uri: window.location.origin,
-          audience: `https://${domain}/api/v2/`,
+          ...(audience && { audience: audience }),
           scope: "openid profile email"
+        }}
+        onRedirectCallback={(appState) => {
+          console.log('🔐 Auth0 redirect callback:', appState);
         }}
       >
         <AuthProvider>

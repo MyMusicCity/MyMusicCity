@@ -3,6 +3,33 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 
+// Environment variable validation for Auth0
+function validateAuthEnvironment() {
+  const issues = [];
+  
+  if (!process.env.AUTH0_DOMAIN) {
+    issues.push("❌ AUTH0_DOMAIN is not configured");
+  } else if (process.env.AUTH0_DOMAIN.includes('your-domain')) {
+    issues.push("❌ AUTH0_DOMAIN contains placeholder value");
+  }
+  
+  if (!process.env.AUTH0_AUDIENCE) {
+    console.warn("⚠️  AUTH0_AUDIENCE is not configured - Auth0 token verification will be disabled");
+  } else {
+    console.log(`✅ Auth0 configured with audience: ${process.env.AUTH0_AUDIENCE}`);
+  }
+  
+  if (issues.length > 0) {
+    console.warn("🔧 Auth0 Configuration Issues:");
+    issues.forEach(issue => console.warn(`   ${issue}`));
+    console.warn("   Auth0 authentication will fall back to local JWT tokens");
+  } else if (process.env.AUTH0_DOMAIN && process.env.AUTH0_AUDIENCE) {
+    console.log("✅ Auth0 server configuration validated");
+  }
+}
+
+validateAuthEnvironment();
+
 const User = require("./models/User");
 const Event = require("./models/Event");
 const Rsvp = require("./models/Rsvp");
@@ -369,40 +396,58 @@ app.put("/api/me/profile", auth, async (req, res) => {
 
     const { year, major } = req.body;
 
+    // Validate required fields
+    if (!year || !major) {
+      return res.status(400).json({ 
+        error: "INCOMPLETE_PROFILE_DATA",
+        message: "Both year and major are required to complete profile",
+        missing: {
+          year: !year,
+          major: !major
+        }
+      });
+    }
+
     let user;
 
-    // If this looks like an Auth0 ID, find the corresponding User record
-    if (authUserId.startsWith('auth0|') || authUserId.includes('|')) {
-      // Use the mongoUser from auth middleware if available
-      if (req.user?.mongoUser) {
-        user = req.user.mongoUser;
-      } else {
-        // Fallback to database lookup
-        user = await User.findOne({ auth0Id: authUserId });
-      }
+    // Prefer mongoUser from auth middleware (most reliable for Auth0 users)
+    if (req.user?.mongoUser) {
+      user = req.user.mongoUser;
+    } else if (authUserId.startsWith('auth0|') || authUserId.includes('|')) {
+      // Auth0 ID - lookup by auth0Id
+      user = await User.findOne({ auth0Id: authUserId });
     } else {
       // Direct MongoDB ObjectId lookup
       user = await User.findById(authUserId);
     }
 
-    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user) {
+      return res.status(404).json({ 
+        error: "USER_NOT_FOUND",
+        message: "User account not found",
+        action: "re-authenticate"
+      });
+    }
 
-    // Update profile fields
-    if (year !== undefined) user.year = year;
-    if (major !== undefined) user.major = major;
+    // Update profile fields and mark as complete
+    const previouslyComplete = user.year && user.major;
+    user.year = year;
+    user.major = major;
 
     await user.save();
+    
+    const nowComplete = user.year && user.major;
+    const justCompleted = !previouslyComplete && nowComplete;
 
     // Return updated user without password
     const updatedUser = user.toObject();
     delete updatedUser.password;
     
-    // Add profile completion status
-    const profileComplete = !!(updatedUser.year && updatedUser.major);
-    
     res.json({
-      ...updatedUser,
-      profileComplete
+      message: justCompleted ? "Profile successfully completed!" : "Profile updated successfully",
+      user: updatedUser,
+      profileComplete: nowComplete,
+      justCompleted: justCompleted
     });
 
   } catch (err) {
@@ -610,16 +655,16 @@ app.post(
       let userId = authUserId;
       let foundUser = null;
 
-      // Use mongoUser from auth middleware if available (preferred)
+      // Use mongoUser from auth middleware if available (preferred for Auth0)
       if (req.user?.mongoUser) {
         foundUser = req.user.mongoUser;
         userId = foundUser._id;
       } else {
-        // Fallback: look up by user ID (should be MongoDB ObjectId now)
+        // Fallback: look up by user ID
         if (mongoose.Types.ObjectId.isValid(authUserId)) {
           foundUser = await User.findById(authUserId).select("_id username email year major");
         } else {
-          // Legacy: might be Auth0 ID, try auth0Id lookup
+          // Auth0 ID lookup
           foundUser = await User.findOne({ auth0Id: authUserId }).select("_id username email year major");
           if (foundUser) {
             userId = foundUser._id;
@@ -628,7 +673,24 @@ app.post(
       }
 
       if (!foundUser) {
-        return res.status(404).json({ error: "User profile not found. Please try signing out and back in." });
+        return res.status(404).json({ 
+          error: "USER_PROFILE_NOT_FOUND",
+          message: "User profile not found. Please sign out and back in.",
+          action: "re-authenticate"
+        });
+      }
+      
+      // Check if profile is complete for Auth0 users
+      if (req.user?.auth0Id && (!foundUser.year || !foundUser.major)) {
+        return res.status(403).json({
+          error: "PROFILE_INCOMPLETE",
+          message: "Please complete your profile before RSVPing to events",
+          action: "complete-profile",
+          profileStatus: {
+            hasYear: !!foundUser.year,
+            hasMajor: !!foundUser.major
+          }
+        });
       }
 
       // Enforce profile completion for RSVPs

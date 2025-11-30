@@ -34,106 +34,122 @@ function getKey(header, callback) {
   });
 }
 
-// Find or create User record for Auth0 users
+// Find or create User record for Auth0 users with atomic operations
 async function findOrCreateAuth0User(auth0Id, email) {
+  const mongoose = require('mongoose');
+  
   try {
     console.log(`Finding/creating user for auth0Id: ${auth0Id}, email: ${email}`);
     
-    // First try to find existing user by auth0Id
+    // Validate required parameters
+    if (!auth0Id) {
+      throw new Error('Auth0 ID is required for user creation');
+    }
+    if (!email) {
+      throw new Error('Email is required for user creation');
+    }
+    
+    // First try to find existing user by auth0Id (most reliable)
     let user = await User.findOne({ auth0Id });
     if (user) {
       console.log('Found existing user by auth0Id:', user.username);
       return user;
     }
 
-    // If not found, try to find by email (for migration of existing users)
-    user = await User.findOne({ email });
-    if (user) {
-      if (!user.auth0Id) {
-        console.log('Found existing user by email, adding auth0Id:', user.username);
-        // Update existing user with auth0Id
-        user.auth0Id = auth0Id;
-        try {
-          await user.save();
-          console.log('Successfully updated user with auth0Id');
-          return user;
-        } catch (saveError) {
-          console.error('Failed to save auth0Id to existing user:', saveError);
-          throw new Error(`Failed to link existing account: ${saveError.message}`);
-        }
-      } else if (user.auth0Id !== auth0Id) {
-        // Account conflict: same email but different auth0Id
-        console.log('⚠️ Account conflict detected - email exists with different auth0Id');
-        console.log(`Existing auth0Id: ${user.auth0Id}, New auth0Id: ${auth0Id}`);
-        throw new Error('Account conflict: This email is already associated with a different account. Please contact support or delete the existing account.');
-      }
-    }
-
-    // Create new user for Auth0
-    if (!email) {
-      throw new Error('Email is required for user creation');
-    }
+    // Start a transaction for atomic user creation
+    const session = await mongoose.startSession();
     
-    let username = email.split('@')[0] || 'user';
-    
-    // Handle username conflicts with improved strategy
-    const baseUsername = username.toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
-    let finalUsername = baseUsername;
-    let counter = 1;
-    const maxAttempts = 50; // Increased attempts
-    
-    console.log(`Generating username starting with: ${baseUsername}`);
-    
-    // Check for conflicts with bounded retry
-    while (counter <= maxAttempts) {
-      const existingUser = await User.findOne({ username: finalUsername });
-      if (!existingUser) {
-        console.log(`Username available: ${finalUsername}`);
-        break;
-      }
-      
-      finalUsername = `${baseUsername}${counter}`;
-      counter++;
-    }
-    
-    // If still conflicts after maxAttempts, use timestamp
-    if (counter > maxAttempts) {
-      finalUsername = `${baseUsername}_${Date.now().toString().slice(-6)}`;
-      console.log(`Using timestamp fallback username: ${finalUsername}`);
-    }
-
-    console.log(`Creating new user with username: ${finalUsername}, email: ${email}`);
-    
-    const newUser = new User({
-      username: finalUsername,
-      email: email.toLowerCase().trim(),
-      password: 'auth0-user', // Placeholder, not used for Auth0 users
-      auth0Id: auth0Id,
-      year: null,
-      major: null
-    });
-
     try {
-      await newUser.save();
-      console.log('Successfully created new user:', finalUsername);
-      return newUser;
-    } catch (saveError) {
-      console.error('Failed to save new user:', saveError);
-      // Check for specific error types
-      if (saveError.code === 11000) {
-        if (saveError.message.includes('username')) {
-          throw new Error('Username conflict detected. Please try again.');
-        } else if (saveError.message.includes('email')) {
-          throw new Error('Email already exists. Please contact support.');
-        } else {
-          throw new Error('Duplicate data conflict. Please try again.');
+      const result = await session.withTransaction(async () => {
+        // Check again within transaction to prevent race conditions
+        let existingUser = await User.findOne({ auth0Id }).session(session);
+        if (existingUser) {
+          console.log('User created by another process, returning existing user');
+          return existingUser;
         }
-      }
-      throw new Error(`User creation failed: ${saveError.message}`);
+
+        // Check for existing user by email (for migration)
+        existingUser = await User.findOne({ email: email.toLowerCase().trim() }).session(session);
+        if (existingUser) {
+          if (!existingUser.auth0Id) {
+            console.log('Found existing user by email, adding auth0Id:', existingUser.username);
+            // Update existing user with auth0Id atomically
+            existingUser.auth0Id = auth0Id;
+            await existingUser.save({ session });
+            console.log('Successfully linked existing account with Auth0');
+            return existingUser;
+          } else if (existingUser.auth0Id !== auth0Id) {
+            // Account conflict: same email but different auth0Id
+            console.log('⚠️ Account conflict detected - email exists with different auth0Id');
+            throw new Error('ACCOUNT_CONFLICT: This email is already associated with a different Auth0 account. Please use account cleanup or contact support.');
+          }
+        }
+
+        // Generate unique username
+        const baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
+        let finalUsername = baseUsername;
+        let counter = 1;
+        const maxAttempts = 10; // Reduced for transaction efficiency
+        
+        while (counter <= maxAttempts) {
+          const conflictUser = await User.findOne({ username: finalUsername }).session(session);
+          if (!conflictUser) {
+            break;
+          }
+          finalUsername = `${baseUsername}${counter}`;
+          counter++;
+        }
+        
+        // Fallback to timestamp if still conflicts
+        if (counter > maxAttempts) {
+          finalUsername = `${baseUsername}_${Date.now().toString().slice(-6)}`;
+        }
+
+        console.log(`Creating new user with username: ${finalUsername}`);
+        
+        // Create new user atomically
+        const newUserData = {
+          username: finalUsername,
+          email: email.toLowerCase().trim(),
+          password: 'auth0-user', // Placeholder for Auth0 users
+          auth0Id: auth0Id,
+          year: null,
+          major: null,
+          createdAt: new Date(),
+          isProfileComplete: false
+        };
+
+        const newUser = new User(newUserData);
+        await newUser.save({ session });
+        console.log('Successfully created new Auth0 user:', finalUsername);
+        return newUser;
+      });
+      
+      return result;
+      
+    } finally {
+      await session.endSession();
     }
+    
   } catch (error) {
     console.error('Error in findOrCreateAuth0User:', error);
-    throw error;
+    
+    // Handle specific error types
+    if (error.message.includes('ACCOUNT_CONFLICT')) {
+      throw error; // Re-throw account conflict errors with original message
+    }
+    
+    if (error.code === 11000) {
+      if (error.message.includes('username')) {
+        throw new Error('USERNAME_CONFLICT: Username generation failed due to conflicts. Please try again.');
+      } else if (error.message.includes('email')) {
+        throw new Error('EMAIL_CONFLICT: Email already exists with different Auth0 ID. Please use account cleanup.');
+      }
+      throw new Error('DUPLICATE_DATA: Data conflict during user creation. Please try again.');
+    }
+    
+    // Generic fallback error
+    throw new Error(`USER_CREATION_FAILED: ${error.message}`);
   }
 }
 
@@ -149,6 +165,11 @@ module.exports = function auth(req, res, next) {
   
   // Try Auth0 token verification first
   if (process.env.AUTH0_DOMAIN && process.env.AUTH0_AUDIENCE && client) {
+    console.log(`🔐 Auth0 verification attempt:`);
+    console.log(`- Domain: ${process.env.AUTH0_DOMAIN}`);
+    console.log(`- Audience: ${process.env.AUTH0_AUDIENCE}`);
+    console.log(`- Token preview: ${token.substring(0, 20)}...`);
+    
     jwt.verify(token, getKey, {
       audience: process.env.AUTH0_AUDIENCE,
       issuer: `https://${process.env.AUTH0_DOMAIN}/`,
@@ -156,30 +177,73 @@ module.exports = function auth(req, res, next) {
     }, async (err, decoded) => {
       if (!err && decoded) {
         // Successfully verified Auth0 token
+        console.log(`Auth0 token verified for user: ${decoded.email}`);
+        
         try {
+          // Validate token claims
+          if (!decoded.sub || !decoded.email) {
+            return res.status(401).json({ 
+              error: "INVALID_TOKEN_CLAIMS",
+              message: "Token missing required user information"
+            });
+          }
+          
           // Find or create MongoDB User record for Auth0 user
           const mongoUser = await findOrCreateAuth0User(decoded.sub, decoded.email);
           
+          // Check if profile is complete
+          const isProfileComplete = mongoUser.year && mongoUser.major;
+          
           req.user = { 
-            id: mongoUser._id.toString(), // Use MongoDB ObjectId for consistency
+            id: decoded.sub,
             email: decoded.email,
-            auth0Id: decoded.sub,
             username: mongoUser.username,
-            mongoUser: mongoUser // Include the full MongoDB user record
+            auth0Id: decoded.sub,
+            mongoUser: mongoUser,
+            isProfileComplete: isProfileComplete
           };
+          
+          console.log(`Auth0 user authenticated: ${mongoUser.username} (Profile complete: ${isProfileComplete})`);
           return next();
-        } catch (dbError) {
-          console.error('Critical: Failed to create/find MongoDB user for Auth0 user:', dbError);
-          // Don't continue without MongoDB user - this breaks functionality
+        } catch (userError) {
+          console.error('Failed to find/create Auth0 user:', userError);
+          
+          // Handle specific user creation errors
+          if (userError.message.includes('ACCOUNT_CONFLICT')) {
+            return res.status(409).json({ 
+              error: "ACCOUNT_CONFLICT",
+              message: "Email conflict with existing account",
+              action: "cleanup",
+              details: userError.message
+            });
+          }
+          
+          if (userError.message.includes('USERNAME_CONFLICT') || userError.message.includes('EMAIL_CONFLICT')) {
+            return res.status(409).json({ 
+              error: "DATA_CONFLICT",
+              message: "User data conflict during account creation",
+              action: "retry",
+              details: process.env.NODE_ENV === 'development' ? userError.message : undefined
+            });
+          }
+          
           return res.status(500).json({ 
-            error: "Unable to create user profile. Please try signing out and back in, or contact support if this continues.",
-            details: process.env.NODE_ENV === 'development' ? dbError.message : undefined
+            error: "USER_CREATION_FAILED",
+            message: "Failed to create or retrieve user account",
+            details: process.env.NODE_ENV === 'development' ? userError.message : 'Please contact support if this persists'
           });
         }
+      } else {
+        console.error('❌ Auth0 token verification failed:', err?.message || err);
+        console.error('Error details:', {
+          name: err?.name,
+          message: err?.message,
+          code: err?.code
+        });
+        console.log('🔄 Falling back to local JWT verification');
+        // Fall back to local JWT verification
+        return tryLocalJWT(token, req, res, next);
       }
-      
-      // Auth0 verification failed, try local JWT as fallback
-      tryLocalJWT(token, req, res, next);
     });
   } else {
     // No Auth0 configured, use local JWT only

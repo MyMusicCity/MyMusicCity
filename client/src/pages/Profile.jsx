@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaPen, FaCheck, FaTimes, FaExclamationTriangle } from "react-icons/fa";
+import { useAuth0 } from "@auth0/auth0-react";
 import { AuthContext } from "../AuthContext";
-import { getCurrentUser, updateUserProfile } from "../api";
+import { getCurrentUser, updateUserProfile, deleteAccount, emergencyCleanup } from "../api";
 import "../styles.css";
 
 export default function Profile() {
   const navigate = useNavigate();
-  const { user: authUser, logout } = useContext(AuthContext);
+  const { user: contextUser, logout } = useContext(AuthContext);
+  const { user: auth0User, getAccessTokenSilently } = useAuth0();
   
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -28,7 +30,7 @@ export default function Profile() {
   // Load user profile
   useEffect(() => {
     const loadProfile = async () => {
-      if (!authUser) {
+      if (!contextUser) {
         navigate("/login");
         return;
       }
@@ -64,7 +66,7 @@ export default function Profile() {
     };
 
     loadProfile();
-  }, [authUser, navigate]);
+  }, [contextUser, navigate]);
 
   const handleEdit = (field) => {
     setEditing({ ...editing, [field]: !editing[field] });
@@ -123,8 +125,8 @@ export default function Profile() {
       setDeleting(true);
       const headers = { "Content-Type": "application/json" };
       
-      if (authUser?.getAccessTokenSilently) {
-        const token = await authUser.getAccessTokenSilently();
+      if (getAccessTokenSilently) {
+        const token = await getAccessTokenSilently();
         headers.Authorization = `Bearer ${token}`;
       }
 
@@ -135,8 +137,19 @@ export default function Profile() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to cleanup legacy accounts');
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = { error: `HTTP ${response.status}` };
+        }
+        
+        // Special handling for auth errors
+        if (response.status === 401) {
+          throw new Error('Authentication required. Please sign out and sign back in, then try again.');
+        }
+        
+        throw new Error(errorData.error || errorData.message || 'Failed to cleanup legacy accounts');
       }
 
       const result = await response.json();
@@ -170,48 +183,29 @@ export default function Profile() {
   const handleEmergencyCleanup = async () => {
     try {
       setDeleting(true);
+      setError(null);
       
-      let email = authUser?.email;
+      let email = contextUser?.email || auth0User?.email;
       if (!email) {
-        // If no email from authUser, prompt user to enter it
+        // If no email from auth contexts, prompt user to enter it
         email = prompt('Enter your email address for emergency cleanup:');
         if (!email) {
           throw new Error('Email is required for emergency cleanup');
         }
       }
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL || window.location.origin}/api/emergency-cleanup`, {
-        method: 'POST',
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        let errorMessage = 'Failed to perform emergency cleanup';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
-        } catch {
-          // If JSON parsing fails, use the response status
-          errorMessage = `Server error: ${response.status} ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      let result;
-      try {
-        result = await response.json();
-      } catch {
-        throw new Error('Server returned invalid response format');
-      }
+      const result = await emergencyCleanup(email);
       
       alert(`Emergency cleanup successful! Removed ${result.deletedAccounts} accounts. Please sign out and sign back in to create a fresh account.`);
       logout();
       navigate("/");
     } catch (err) {
       console.error('Emergency cleanup failed:', err);
-      setError(`Emergency cleanup failed: ${err.message}`);
+      if (err.status === 401) {
+        setError('Authentication required. This is normal for emergency cleanup - the operation may have succeeded anyway.');
+      } else {
+        setError(`Emergency cleanup failed: ${err.message || err}`);
+      }
     } finally {
       setDeleting(false);
     }
@@ -228,32 +222,23 @@ export default function Profile() {
 
     try {
       setDeleting(true);
-      const headers = { "Content-Type": "application/json" };
+      setError(null);
       
-      // Get Auth0 token using the authUser context
-      if (authUser && typeof authUser.getAccessTokenSilently === 'function') {
-        const token = await authUser.getAccessTokenSilently();
-        headers.Authorization = `Bearer ${token}`;
-      }
-
-      const API_BASE = process.env.REACT_APP_API_URL || window.location.origin;
-      const response = await fetch(`${API_BASE}/api/me/account`, {
-        method: 'DELETE',
-        headers,
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete account');
-      }
-
-      alert('Account successfully deleted. You will now be signed out.');
+      await deleteAccount();
+      
+      alert("Account successfully deleted. You will now be signed out.");
       logout();
       navigate("/");
     } catch (err) {
-      console.error('Failed to delete account:', err);
-      setError(`Failed to delete account: ${err.message}`);
+      console.error("Failed to delete account:", err);
+      
+      if (err.code === 'ACCOUNT_CONFLICT' || err.action === 'cleanup') {
+        setError(`${err.message} Try using the emergency cleanup option below.`);
+      } else if (err.status === 401) {
+        setError("Authentication failed. Please sign out and sign back in, then try again.");
+      } else {
+        setError(`Failed to delete account: ${err.message || err}`);
+      }
     } finally {
       setDeleting(false);
     }
@@ -315,14 +300,14 @@ export default function Profile() {
   return (
     <div className="profile-page">
       <div className="profile-card">
-        {authUser?.picture ? (
-          <img src={authUser.picture} alt="Profile" className="profile-avatar-img" />
+        {auth0User?.picture ? (
+          <img src={auth0User.picture} alt="Profile" className="profile-avatar-img" />
         ) : (
           <div className="profile-avatar">{avatarLetter}</div>
         )}
         
-        <h2 className="profile-name">{profile?.username || authUser?.name || "User"}</h2>
-        <p className="profile-email">{profile?.email || authUser?.email}</p>
+        <h2 className="profile-name">{profile?.username || auth0User?.name || contextUser?.username || "User"}</h2>
+        <p className="profile-email">{profile?.email || auth0User?.email || contextUser?.email}</p>
         
         {profile?.createdAt && (
           <p className="profile-date">
