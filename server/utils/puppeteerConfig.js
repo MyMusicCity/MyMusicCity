@@ -69,6 +69,19 @@ function getPuppeteerConfig() {
 }
 
 /**
+ * Map Puppeteer waitUntil options to Playwright equivalents
+ */
+function mapWaitUntilOption(waitUntil) {
+  const mapping = {
+    'load': 'load',
+    'domcontentloaded': 'domcontentloaded', 
+    'networkidle0': 'networkidle',
+    'networkidle2': 'networkidle'
+  };
+  return mapping[waitUntil] || 'networkidle';
+}
+
+/**
  * Launch browser with multiple fallback strategies for Render deployment
  */
 async function launchBrowser() {
@@ -99,28 +112,76 @@ async function launchBrowser() {
       // Create Puppeteer-compatible interface
       const playwrightAdapter = {
         async newPage() {
-          const context = await browser.newContext();
+          const context = await browser.newContext({
+            // Set default user agent at context level
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+          });
           const page = await context.newPage();
           
-          // Add Puppeteer-like methods
-          const originalGoto = page.goto.bind(page);
-          page.goto = async (url, options) => {
-            return await originalGoto(url, { 
-              waitUntil: options?.waitUntil || 'networkidle',
-              timeout: options?.timeout || 30000
-            });
+          // Store original methods to avoid infinite recursion
+          const originalGoto = page.goto;
+          const originalWaitForSelector = page.waitForSelector;
+          const originalSetExtraHTTPHeaders = page.setExtraHTTPHeaders;
+          
+          // Override goto to handle Puppeteer options
+          page.goto = async function(url, options = {}) {
+            const playwrightOptions = {
+              timeout: options.timeout || 30000
+            };
+            
+            // Map waitUntil option
+            if (options.waitUntil) {
+              playwrightOptions.waitUntil = mapWaitUntilOption(options.waitUntil);
+            } else {
+              playwrightOptions.waitUntil = 'networkidle';
+            }
+            
+            return await originalGoto.call(this, url, playwrightOptions);
           };
           
-          // Add setUserAgent method for Playwright compatibility
-          page.setUserAgent = async (userAgent) => {
-            // Playwright uses setExtraHTTPHeaders or can set user agent via context
-            return Promise.resolve(); // No-op for compatibility
+          // Add Puppeteer-compatible setUserAgent method
+          page.setUserAgent = async function(userAgent) {
+            try {
+              // For Playwright, we need to set user agent at context level
+              // Since we can't change context after creation, we'll use setExtraHTTPHeaders as fallback
+              await page.setExtraHTTPHeaders({
+                'User-Agent': userAgent
+              });
+              return Promise.resolve();
+            } catch (error) {
+              console.log('setUserAgent fallback failed, continuing...', error.message);
+              return Promise.resolve();
+            }
           };
           
-          // Add setExtraHTTPHeaders method for Playwright compatibility
-          page.setExtraHTTPHeaders = async (headers) => {
-            // Playwright handles this differently, but provide compatibility
-            return Promise.resolve(); // No-op for compatibility
+          // Add Puppeteer-compatible setExtraHTTPHeaders method
+          page.setExtraHTTPHeaders = async function(headers) {
+            try {
+              // Use the original method if available
+              if (originalSetExtraHTTPHeaders) {
+                return await originalSetExtraHTTPHeaders.call(this, headers);
+              }
+              return Promise.resolve();
+            } catch (error) {
+              console.log('setExtraHTTPHeaders failed, continuing...', error.message);
+              return Promise.resolve();
+            }
+          };
+          
+          // Override waitForSelector to handle potential differences
+          page.waitForSelector = async function(selector, options = {}) {
+            try {
+              return await originalWaitForSelector.call(this, selector, {
+                timeout: options.timeout || 30000,
+                state: options.visible ? 'visible' : 'attached'
+              });
+            } catch (error) {
+              // If selector not found, return null to match Puppeteer behavior
+              if (error.message.includes('Timeout')) {
+                return null;
+              }
+              throw error;
+            }
           };
           
           return page;
