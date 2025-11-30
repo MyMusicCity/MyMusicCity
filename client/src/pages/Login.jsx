@@ -22,11 +22,21 @@ export default function Login() {
 
   if (isLoading) {
     return (
-      <div className="login-page">
-        <div className="login-card">
-          <div className="loading-spinner">
-            <div className="spinner"></div>
-            <p>Loading...</p>
+      <div className="login-container">
+        <div className="login-left">
+          <h1 className="brand">MyMusicCity</h1>
+          <div className="login-card">
+            <div className="loading-spinner">
+              <div className="spinner"></div>
+              <p>Loading...</p>
+            </div>
+          </div>
+        </div>
+        <div className="login-right">
+          <div className="overlay">
+            <h1 className="login-hero-text">
+              Your<br />Music<br />City.
+            </h1>
           </div>
         </div>
       </div>
@@ -35,14 +45,24 @@ export default function Login() {
 
   if (error) {
     return (
-      <div className="login-page">
-        <div className="login-card">
-          <div className="error-message">
-            <h2>Authentication Error</h2>
-            <p>{error.message}</p>
-            <button className="auth-button" onClick={() => window.location.reload()}>
-              Try Again
-            </button>
+      <div className="login-container">
+        <div className="login-left">
+          <h1 className="brand">MyMusicCity</h1>
+          <div className="login-card">
+            <div className="error-message">
+              <h2>Authentication Error</h2>
+              <p>{error.message}</p>
+              <button className="auth-button" onClick={() => window.location.reload()}>
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="login-right">
+          <div className="overlay">
+            <h1 className="login-hero-text">
+              Your<br />Music<br />City.
+            </h1>
           </div>
         </div>
       </div>
@@ -50,43 +70,37 @@ export default function Login() {
   }
 
   return (
-    <div className="login-page">
-      <div className="login-hero">
-        <h1 className="hero-title">MyMusicCity</h1>
-        <p className="hero-subtitle">Your gateway to Nashville's vibrant music scene</p>
-      </div>
-      
-      <div className="login-card">
-        <h2>Welcome to MyMusicCity</h2>
-        
-        <div className="login-content">
+    <div className="login-container">
+      <div className="login-left">
+        <h1 className="brand">MyMusicCity</h1>
+        <div className="login-card">
+          <h2>Welcome Back</h2>
+          
           <div className="vanderbilt-notice">
-            <h3>🎓 Vanderbilt Students Only</h3>
-            <p>Access is restricted to students with @vanderbilt.edu email addresses</p>
+            <p>🎓 For Vanderbilt Students</p>
+            <small>Secure access with your @vanderbilt.edu account</small>
           </div>
           
-          <div className="auth-section">
-            <button className="auth-button primary" onClick={handleLogin}>
-              🔐 Sign In with Vanderbilt Account
-            </button>
-            
-            <div className="auth-info">
-              <p>Secure authentication powered by Auth0</p>
-              <p className="privacy-note">
-                We'll redirect you to a secure login page. Your credentials are never stored on our servers.
-              </p>
-            </div>
+          <button className="auth-button primary" onClick={handleLogin}>
+            🔐 Sign In with Vanderbilt Account
+          </button>
+          
+          <div className="auth-info">
+            <p>Powered by Auth0</p>
+            <small>Your credentials are never stored on our servers</small>
           </div>
           
           <div className="features-preview">
-            <h4>What you can do:</h4>
-            <ul>
-              <li>🎵 Discover live music events</li>
-              <li>📅 RSVP to concerts and shows</li>
-              <li>💬 Comment and connect with fellow music lovers</li>
-              <li>📍 Find events by location and genre</li>
-            </ul>
+            <small>Discover • RSVP • Connect • Explore</small>
           </div>
+        </div>
+      </div>
+
+      <div className="login-right">
+        <div className="overlay">
+          <h1 className="login-hero-text">
+            Your<br />Music<br />City.
+          </h1>
         </div>
       </div>
     </div>
