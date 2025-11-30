@@ -85,59 +85,37 @@ async function findOrCreateAuth0User(auth0Id, email) {
           }
         }
 
-        // Generate user-friendly username from Auth0 data
-        let baseUsername = 'user';
-        
-        // Try to extract from email first
-        if (email && !email.includes('@temp.local')) {
-          const emailPart = email.split('@')[0];
-          if (emailPart && emailPart.length > 2 && !emailPart.startsWith('auth0')) {
-            baseUsername = emailPart;
-          }
-        }
-        
-        // If email didn't work, try Auth0 sub for something readable
-        if (baseUsername === 'user' && auth0Id) {
-          // Extract from auth0|google-oauth2|123 or similar
-          const parts = auth0Id.split('|');
-          if (parts.length >= 2 && parts[1] !== 'user') {
-            baseUsername = parts[1].replace(/[^a-zA-Z0-9]/g, '').substring(0, 10) || 'user';
-          }
-        }
-        
-        // Clean and ensure it's valid
-        baseUsername = baseUsername.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 15) || 'user';
-        let finalUsername = baseUsername;
+        // Create simple temporary username - user will fill in their own
+        let finalUsername = 'tempuser';
         let counter = 1;
-        const maxAttempts = 10; // Reduced for transaction efficiency
+        const maxAttempts = 10;
         
         while (counter <= maxAttempts) {
           const conflictUser = await User.findOne({ username: finalUsername }).session(session);
           if (!conflictUser) {
             break;
           }
-          finalUsername = `${baseUsername}${counter}`;
+          finalUsername = `tempuser${counter}`;
           counter++;
         }
         
         // Fallback to timestamp if still conflicts
         if (counter > maxAttempts) {
-          finalUsername = `${baseUsername}_${Date.now().toString().slice(-6)}`;
+          finalUsername = `tempuser_${Date.now().toString().slice(-6)}`;
         }
 
         console.log(`Creating new user with username: ${finalUsername}`);
         
-        // Create new user atomically with editable defaults
+        // Create new user with blank fields for user to fill
         const newUserData = {
           username: finalUsername,
-          email: email.includes('@temp.local') ? '' : email.toLowerCase().trim(),
+          email: '', // Leave blank for user to fill
           password: 'auth0-user', // Placeholder for Auth0 users
           auth0Id: auth0Id,
           year: null,
           major: null,
           createdAt: new Date(),
-          isProfileComplete: false,
-          needsEmailUpdate: email.includes('@temp.local') // Flag for UI
+          isProfileComplete: false
         };
 
         const newUser = new User(newUserData);

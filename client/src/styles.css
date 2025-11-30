@@ -768,6 +768,72 @@ select {
   cursor: not-allowed;
 }
 
+.profile-form {
+  text-align: left;
+  margin: 1.5rem 0;
+  background: #f9f9f9;
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid #e0e0e0;
+}
+
+.form-field {
+  margin: 1rem 0;
+}
+
+.form-field label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+  font-weight: 500;
+}
+
+.form-field input {
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.form-field input:focus {
+  outline: none;
+  border-color: #b1976b;
+  box-shadow: 0 0 0 3px rgba(177, 151, 107, 0.1);
+}
+
+.form-field input:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.save-profile-btn {
+  width: 100%;
+  background: #b1976b;
+  color: white;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 1rem;
+}
+
+.save-profile-btn:hover:not(:disabled) {
+  background: #967c56;
+  transform: translateY(-1px);
+}
+
+.save-profile-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .profile-actions {
   margin-top: 2rem;
 }

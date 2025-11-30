@@ -17,19 +17,15 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   
-  const [editing, setEditing] = useState({
-    username: false,
-    email: false,
-    year: false,
-    major: false,
-  });
-  
   const [editValues, setEditValues] = useState({
     username: "",
     email: "",
     year: "",
     major: "",
   });
+  
+  // Check if all fields are filled for save button
+  const canSave = editValues.username.trim() && editValues.email.trim() && editValues.year.trim() && editValues.major.trim();
 
   // Load user profile
   useEffect(() => {
@@ -44,6 +40,7 @@ export default function Profile() {
         setError(null);
         const userData = await getCurrentUser();
         setProfile(userData);
+        // Always start with blank form - don't pre-fill from any source
         setEditValues({
           username: userData.username || "",
           email: userData.email || "",
@@ -86,46 +83,29 @@ export default function Profile() {
     loadProfile();
   }, [contextUser, navigate]);
 
-  const handleEdit = (field) => {
-    setEditing({ ...editing, [field]: !editing[field] });
-    if (!editing[field]) {
-      // Starting to edit, reset edit value to current profile value
-      setEditValues({ ...editValues, [field]: profile[field] || "" });
+  const handleSaveProfile = async () => {
+    if (!canSave) {
+      setError("Please fill in all fields before saving.");
+      return;
     }
-  };
 
-  const handleSave = async (field) => {
     try {
       setSaving(true);
-      const updateData = { [field]: editValues[field] };
-      const updatedUser = await updateUserProfile(updateData);
+      setError("");
+      const updatedUser = await updateUserProfile(editValues);
       setProfile(updatedUser);
-      setEditing({ ...editing, [field]: false });
+      setError("");
     } catch (err) {
       console.error("Failed to update profile:", err);
-      setError(err.message);
+      if (err.message.includes("USERNAME_TAKEN")) {
+        setError("Username already taken. Please choose another.");
+      } else if (err.message.includes("INVALID_EMAIL")) {
+        setError("Please enter a valid email address.");
+      } else {
+        setError(err.message || "Failed to save profile. Please try again.");
+      }
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleCancel = (field) => {
-    setEditing({ ...editing, [field]: false });
-    setEditValues({ ...editValues, [field]: profile[field] || "" });
-  };
-
-  const handleChange = (field, value) => {
-    setEditValues({ ...editValues, [field]: value });
-  };
-
-  const handleKeyPress = (e, field) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleSave(field);
-    }
-    if (e.key === "Escape") {
-      e.preventDefault();
-      handleCancel(field);
     }
   };
 
@@ -324,8 +304,8 @@ export default function Profile() {
           <div className="profile-avatar">{avatarLetter}</div>
         )}
         
-        <h2 className="profile-name">{profile?.username || auth0User?.name || contextUser?.username || "User"}</h2>
-        <p className="profile-email">{profile?.email || auth0User?.email || contextUser?.email}</p>
+        <h2 className="profile-name">{profile?.username || "User"}</h2>
+        <p className="profile-email">{profile?.email || "No email set"}</p>
         
         {profile?.createdAt && (
           <p className="profile-date">
@@ -340,174 +320,58 @@ export default function Profile() {
           </div>
         )}
 
-        <div className="profile-details">
-          <div className="profile-field">
-            <strong>Username:</strong>{" "}
-            {editing.username ? (
-              <div className="edit-controls">
-                <input
-                  type="text"
-                  value={editValues.username}
-                  onChange={(e) => handleChange("username", e.target.value)}
-                  onKeyDown={(e) => handleKeyPress(e, "username")}
-                  className="editable-input"
-                  placeholder="Enter username"
-                  autoFocus
-                  disabled={saving}
-                />
-                <div className="edit-buttons">
-                  <button 
-                    onClick={() => handleSave("username")} 
-                    disabled={saving}
-                    className="save-btn"
-                  >
-                    <FaCheck />
-                  </button>
-                  <button 
-                    onClick={() => handleCancel("username")} 
-                    disabled={saving}
-                    className="cancel-btn"
-                  >
-                    <FaTimes />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <span className="field-value">
-                {profile?.username || "Not set"}{" "}
-                <FaPen
-                  className="edit-icon"
-                  onClick={() => handleEdit("username")}
-                />
-              </span>
-            )}
+        <div className="profile-form">
+          <div className="form-field">
+            <label><strong>Username:</strong></label>
+            <input
+              type="text"
+              value={editValues.username}
+              onChange={(e) => setEditValues({...editValues, username: e.target.value})}
+              placeholder="Enter username"
+              disabled={saving}
+            />
           </div>
 
-          <div className="profile-field">
-            <strong>Email:</strong>{" "}
-            {editing.email ? (
-              <div className="edit-controls">
-                <input
-                  type="email"
-                  value={editValues.email}
-                  onChange={(e) => handleChange("email", e.target.value)}
-                  onKeyDown={(e) => handleKeyPress(e, "email")}
-                  className="editable-input"
-                  placeholder="Enter email"
-                  autoFocus
-                  disabled={saving}
-                />
-                <div className="edit-buttons">
-                  <button 
-                    onClick={() => handleSave("email")} 
-                    disabled={saving}
-                    className="save-btn"
-                  >
-                    <FaCheck />
-                  </button>
-                  <button 
-                    onClick={() => handleCancel("email")} 
-                    disabled={saving}
-                    className="cancel-btn"
-                  >
-                    <FaTimes />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <span className="field-value">
-                {profile?.email || "Not set"}{" "}
-                <FaPen
-                  className="edit-icon"
-                  onClick={() => handleEdit("email")}
-                />
-              </span>
-            )}
+          <div className="form-field">
+            <label><strong>Email:</strong></label>
+            <input
+              type="email"
+              value={editValues.email}
+              onChange={(e) => setEditValues({...editValues, email: e.target.value})}
+              placeholder="Enter email"
+              disabled={saving}
+            />
           </div>
 
-          <div className="profile-field">
-            <strong>Year:</strong>{" "}
-            {editing.year ? (
-              <div className="edit-controls">
-                <input
-                  type="text"
-                  value={editValues.year}
-                  onChange={(e) => handleChange("year", e.target.value)}
-                  onKeyDown={(e) => handleKeyPress(e, "year")}
-                  className="editable-input"
-                  placeholder="e.g., Sophomore, Graduate"
-                  autoFocus
-                  disabled={saving}
-                />
-                <div className="edit-buttons">
-                  <button 
-                    onClick={() => handleSave("year")} 
-                    disabled={saving}
-                    className="save-btn"
-                  >
-                    <FaCheck />
-                  </button>
-                  <button 
-                    onClick={() => handleCancel("year")} 
-                    disabled={saving}
-                    className="cancel-btn"
-                  >
-                    <FaTimes />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <span className="field-value">
-                {profile?.year || "Not set"}{" "}
-                <FaPen
-                  className="edit-icon"
-                  onClick={() => handleEdit("year")}
-                />
-              </span>
-            )}
+          <div className="form-field">
+            <label><strong>Year:</strong></label>
+            <input
+              type="text"
+              value={editValues.year}
+              onChange={(e) => setEditValues({...editValues, year: e.target.value})}
+              placeholder="e.g., Sophomore, Graduate"
+              disabled={saving}
+            />
           </div>
 
-          <div className="profile-field">
-            <strong>Major:</strong>{" "}
-            {editing.major ? (
-              <div className="edit-controls">
-                <input
-                  type="text"
-                  value={editValues.major}
-                  onChange={(e) => handleChange("major", e.target.value)}
-                  onKeyDown={(e) => handleKeyPress(e, "major")}
-                  className="editable-input"
-                  placeholder="e.g., Computer Science, Music"
-                  autoFocus
-                  disabled={saving}
-                />
-                <div className="edit-buttons">
-                  <button 
-                    onClick={() => handleSave("major")} 
-                    disabled={saving}
-                    className="save-btn"
-                  >
-                    <FaCheck />
-                  </button>
-                  <button 
-                    onClick={() => handleCancel("major")} 
-                    disabled={saving}
-                    className="cancel-btn"
-                  >
-                    <FaTimes />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <span className="field-value">
-                {profile?.major || "Not set"}{" "}
-                <FaPen
-                  className="edit-icon"
-                  onClick={() => handleEdit("major")}
-                />
-              </span>
-            )}
+          <div className="form-field">
+            <label><strong>Major:</strong></label>
+            <input
+              type="text"
+              value={editValues.major}
+              onChange={(e) => setEditValues({...editValues, major: e.target.value})}
+              placeholder="e.g., Computer Science, Music"
+              disabled={saving}
+            />
           </div>
+
+          <button 
+            className="save-profile-btn"
+            onClick={handleSaveProfile}
+            disabled={saving || !canSave}
+          >
+            {saving ? "Saving..." : "Save Profile"}
+          </button>
         </div>
 
         {error && (
