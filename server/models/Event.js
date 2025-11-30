@@ -44,6 +44,22 @@ const EventSchema = new mongoose.Schema({
     type: String, 
     default: "manual"    // helpful for tracking (e.g. "do615", "user", etc.)
   },
+  // NEW: Music-specific fields (all optional for backward compatibility)
+  genre: {
+    type: String,
+    enum: ["Rock", "Pop", "Country", "Jazz", "Hip-Hop", "Electronic", "Folk", "Blues", "Classical", "Indie", "Rap", "Other"],
+    default: "Other"
+  },
+  venue: {
+    type: String,
+    required: false,
+    trim: true
+  },
+  musicType: {
+    type: String,
+    enum: ["concert", "festival", "open-mic", "dj-set", "acoustic", "jam-session", "other"],
+    default: "other"
+  },
   createdAt: { 
     type: Date, 
     default: Date.now 

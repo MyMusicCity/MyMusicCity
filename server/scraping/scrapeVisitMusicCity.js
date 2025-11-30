@@ -5,6 +5,7 @@ const puppeteer = require("puppeteer");
 const mongoose = require("../mongoose");
 const Event = require("../models/Event");
 const { getEventImage } = require("../utils/eventImages");
+const { classifyEvent } = require("../utils/musicClassifier");
 const { launchBrowser } = require("../utils/puppeteerConfig");
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 
@@ -105,20 +106,35 @@ async function scrapeVisitMusicCity() {
       };
     });
 
-    if (normalized.length === 0) {
-      console.log("No normalized events to save for Visit Music City.");
+    // Filter for music events only and add genre classification
+    const musicEvents = normalized.filter(event => {
+      const classification = classifyEvent(event);
+      if (classification.isMusic) {
+        // Add music-specific fields
+        event.genre = classification.genre;
+        event.musicType = classification.musicType;
+        event.venue = classification.venue;
+        return true;
+      }
+      return false;
+    });
+
+    console.log(`Filtered ${normalized.length} total events to ${musicEvents.length} music events`);
+
+    if (musicEvents.length === 0) {
+      console.log("No music events to save for Visit Music City.");
       return;
     }
 
-    const titles = normalized.map((e) => e.title);
-    const urls = normalized.map((e) => e.url).filter(Boolean);
+    const titles = musicEvents.map((e) => e.title);
+    const urls = musicEvents.map((e) => e.url).filter(Boolean);
     const queryOr = [];
     if (titles.length) queryOr.push({ title: { $in: titles } });
     if (urls.length) queryOr.push({ url: { $in: urls } });
     const existing = queryOr.length ? await Event.find({ $or: queryOr }).select("title url") : [];
     const existingTitles = new Set(existing.map((x) => x.title));
     const existingUrls = new Set(existing.map((x) => x.url).filter(Boolean));
-    const newEvents = normalized.filter((e) => {
+    const newEvents = musicEvents.filter((e) => {
       if (existingUrls.has(e.url)) return false;
       if (existingTitles.has(e.title)) return false;
       return true;

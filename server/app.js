@@ -88,9 +88,33 @@ app.get("/api/users", async (_req, res) => {
 });
 
 // ⭐ GET ALL EVENTS WITH RSVP + COMMENT COUNTS
-app.get("/api/events", async (_req, res) => {
+app.get("/api/events", async (req, res) => {
   try {
-    let events = await Event.find()
+    // Build query object from optional parameters (backward compatible)
+    let query = {};
+    
+    // Optional filtering parameters (all backward compatible)
+    if (req.query.genre && req.query.genre !== 'all') {
+      query.genre = req.query.genre;
+    }
+    
+    if (req.query.venue) {
+      query.venue = new RegExp(req.query.venue, 'i'); // case-insensitive search
+    }
+    
+    if (req.query.musicType && req.query.musicType !== 'all') {
+      query.musicType = req.query.musicType;
+    }
+    
+    if (req.query.location) {
+      query.location = new RegExp(req.query.location, 'i'); // case-insensitive search
+    }
+    
+    if (req.query.source) {
+      query.source = req.query.source;
+    }
+
+    let events = await Event.find(query)
       .populate("createdBy", "username email")
       .lean()
       .exec();
@@ -122,6 +146,28 @@ app.get("/api/events", async (_req, res) => {
       rsvpCount: rsvpMap[String(ev._id)] || 0,
       commentCount: commentMap[String(ev._id)] || 0,
     }));
+
+    // Optional sorting (backward compatible)
+    if (req.query.sortBy) {
+      switch (req.query.sortBy) {
+        case 'mostComments':
+          events.sort((a, b) => b.commentCount - a.commentCount);
+          break;
+        case 'mostRsvps':
+          events.sort((a, b) => b.rsvpCount - a.rsvpCount);
+          break;
+        case 'locationAZ':
+          events.sort((a, b) => (a.location || '').localeCompare(b.location || ''));
+          break;
+        case 'soonest':
+          events.sort((a, b) => new Date(a.date) - new Date(b.date));
+          break;
+        case 'latest':
+          events.sort((a, b) => new Date(b.date) - new Date(a.date));
+          break;
+        // Default: no sorting (preserves existing behavior)
+      }
+    }
 
     res.json(events);
 

@@ -6,6 +6,23 @@ const UserSchema = new mongoose.Schema({
   password: { type: String, required: true },
   year:     { type: String },   
   major:    { type: String },  
+  // NEW: Admin and Auth0 integration fields (all optional for backward compatibility)
+  role: {
+    type: String,
+    enum: ["user", "admin"],
+    default: "user"
+  },
+  auth0Id: {
+    type: String,
+    required: false,
+    unique: true,
+    sparse: true  // Allows nulls without unique constraint conflicts
+  },
+  preferences: {
+    favoriteGenres: [String],
+    favoriteVenues: [String],
+    notifications: { type: Boolean, default: true }
+  },
   createdAt:{ type: Date, default: Date.now },
 });
 

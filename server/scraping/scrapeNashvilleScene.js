@@ -4,6 +4,7 @@ const puppeteer = require("puppeteer");
 const mongoose = require("../mongoose");
 const Event = require("../models/Event");
 const { getEventImage } = require("../utils/eventImages");
+const { classifyEvent } = require("../utils/musicClassifier");
 const { launchBrowser } = require("../utils/puppeteerConfig");
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 
@@ -103,9 +104,24 @@ async function scrapeDo615() {
       };
     });
 
+    // Filter for music events only and add genre classification
+    const musicEvents = formattedEvents.filter(event => {
+      const classification = classifyEvent(event);
+      if (classification.isMusic) {
+        // Add music-specific fields
+        event.genre = classification.genre;
+        event.musicType = classification.musicType;
+        event.venue = classification.venue;
+        return true;
+      }
+      return false;
+    });
+
+    console.log(`Filtered ${formattedEvents.length} total events to ${musicEvents.length} music events`);
+
     // Avoid duplicates (check by title OR url)
-    const titles = formattedEvents.map((e) => e.title);
-    const urls = formattedEvents.map((e) => e.url).filter(Boolean);
+    const titles = musicEvents.map((e) => e.title);
+    const urls = musicEvents.map((e) => e.url).filter(Boolean);
     const queryOr = [];
     if (titles.length) queryOr.push({ title: { $in: titles } });
     if (urls.length) queryOr.push({ url: { $in: urls } });
@@ -113,7 +129,7 @@ async function scrapeDo615() {
     const existingTitles = new Set(existing.map((e) => e.title));
     const existingUrls = new Set(existing.map((e) => e.url).filter(Boolean));
 
-    const newEvents = formattedEvents.filter((e) => {
+    const newEvents = musicEvents.filter((e) => {
       if (existingUrls.has(e.url)) return false;
       if (existingTitles.has(e.title)) return false;
       return true;
