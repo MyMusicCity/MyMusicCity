@@ -34,7 +34,9 @@ export function AuthProvider({ children }) {
 
   // Validate Vanderbilt email domain
   const isValidVanderbiltUser = (user) => {
-    return user?.email?.endsWith('@vanderbilt.edu');
+    // Temporarily disable email restriction for testing
+    return true;
+    // return user?.email?.endsWith('@vanderbilt.edu');
   };
 
   // Get token from Auth0
