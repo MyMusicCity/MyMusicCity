@@ -14,7 +14,6 @@ export default function Profile() {
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   
   const [editing, setEditing] = useState({
     year: false,
