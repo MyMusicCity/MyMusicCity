@@ -85,8 +85,28 @@ async function findOrCreateAuth0User(auth0Id, email) {
           }
         }
 
-        // Generate unique username
-        const baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
+        // Generate user-friendly username from Auth0 data
+        let baseUsername = 'user';
+        
+        // Try to extract from email first
+        if (email && !email.includes('@temp.local')) {
+          const emailPart = email.split('@')[0];
+          if (emailPart && emailPart.length > 2 && !emailPart.startsWith('auth0')) {
+            baseUsername = emailPart;
+          }
+        }
+        
+        // If email didn't work, try Auth0 sub for something readable
+        if (baseUsername === 'user' && auth0Id) {
+          // Extract from auth0|google-oauth2|123 or similar
+          const parts = auth0Id.split('|');
+          if (parts.length >= 2 && parts[1] !== 'user') {
+            baseUsername = parts[1].replace(/[^a-zA-Z0-9]/g, '').substring(0, 10) || 'user';
+          }
+        }
+        
+        // Clean and ensure it's valid
+        baseUsername = baseUsername.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 15) || 'user';
         let finalUsername = baseUsername;
         let counter = 1;
         const maxAttempts = 10; // Reduced for transaction efficiency
@@ -107,16 +127,17 @@ async function findOrCreateAuth0User(auth0Id, email) {
 
         console.log(`Creating new user with username: ${finalUsername}`);
         
-        // Create new user atomically
+        // Create new user atomically with editable defaults
         const newUserData = {
           username: finalUsername,
-          email: email.toLowerCase().trim(),
+          email: email.includes('@temp.local') ? '' : email.toLowerCase().trim(),
           password: 'auth0-user', // Placeholder for Auth0 users
           auth0Id: auth0Id,
           year: null,
           major: null,
           createdAt: new Date(),
-          isProfileComplete: false
+          isProfileComplete: false,
+          needsEmailUpdate: email.includes('@temp.local') // Flag for UI
         };
 
         const newUser = new User(newUserData);

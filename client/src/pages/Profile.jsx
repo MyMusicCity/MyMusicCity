@@ -18,11 +18,15 @@ export default function Profile() {
   const [deleting, setDeleting] = useState(false);
   
   const [editing, setEditing] = useState({
+    username: false,
+    email: false,
     year: false,
     major: false,
   });
   
   const [editValues, setEditValues] = useState({
+    username: "",
+    email: "",
     year: "",
     major: "",
   });
@@ -41,6 +45,8 @@ export default function Profile() {
         const userData = await getCurrentUser();
         setProfile(userData);
         setEditValues({
+          username: userData.username || "",
+          email: userData.email || "",
           year: userData.year || "",
           major: userData.major || "",
         });
@@ -62,18 +68,6 @@ export default function Profile() {
           setError("Account conflict detected. Use the emergency cleanup option below to resolve this.");
         } else if (err.status === 401) {
           setError("Authentication failed. Please try the emergency cleanup option below.");
-        } else {
-          setError(`Failed to load profile: ${err.message}. Try the emergency cleanup option if this persists.`);
-        }
-        } else if (err.message.includes("INVALID_TOKEN_CLAIMS")) {
-          setError("Authentication issue detected. Please try signing out and back in, or use emergency cleanup below.");
-        } else if (err.code === 'ACCOUNT_CONFLICT') {
-          setError("Account conflict detected. Use the emergency cleanup option below to resolve this.");
-        } else if (err.status === 401) {
-          setError("Authentication failed. Please sign out and back in, or use emergency cleanup.");
-        } else {
-          setError(`Failed to load profile: ${err.message}. Try refreshing or using emergency cleanup below.`);
-        }
         } else if (err.message.includes("Unable to create user profile")) {
           setError("There was an issue creating your profile. This may be due to a data conflict. Please try the 'Clean Up Account' option below, or contact support with this exact message: " + err.message);
         } else if (err.message.includes("Authentication required")) {
@@ -82,7 +76,7 @@ export default function Profile() {
         } else if (err.message.includes("Username conflict") || err.message.includes("Email already exists") || err.message.includes("Account conflict")) {
           setError("Account conflict detected: " + err.message + " Try the 'Clean Up Account' option below or contact support for assistance.");
         } else {
-          setError(`Profile loading failed: ${err.message}. If you had an account before our Auth0 migration, try the 'Clean Up Account' option below.`);
+          setError(`Failed to load profile: ${err.message}. Try the emergency cleanup option if this persists.`);
         }
       } finally {
         setLoading(false);
@@ -347,6 +341,90 @@ export default function Profile() {
         )}
 
         <div className="profile-details">
+          <div className="profile-field">
+            <strong>Username:</strong>{" "}
+            {editing.username ? (
+              <div className="edit-controls">
+                <input
+                  type="text"
+                  value={editValues.username}
+                  onChange={(e) => handleChange("username", e.target.value)}
+                  onKeyDown={(e) => handleKeyPress(e, "username")}
+                  className="editable-input"
+                  placeholder="Enter username"
+                  autoFocus
+                  disabled={saving}
+                />
+                <div className="edit-buttons">
+                  <button 
+                    onClick={() => handleSave("username")} 
+                    disabled={saving}
+                    className="save-btn"
+                  >
+                    <FaCheck />
+                  </button>
+                  <button 
+                    onClick={() => handleCancel("username")} 
+                    disabled={saving}
+                    className="cancel-btn"
+                  >
+                    <FaTimes />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <span className="field-value">
+                {profile?.username || "Not set"}{" "}
+                <FaPen
+                  className="edit-icon"
+                  onClick={() => handleEdit("username")}
+                />
+              </span>
+            )}
+          </div>
+
+          <div className="profile-field">
+            <strong>Email:</strong>{" "}
+            {editing.email ? (
+              <div className="edit-controls">
+                <input
+                  type="email"
+                  value={editValues.email}
+                  onChange={(e) => handleChange("email", e.target.value)}
+                  onKeyDown={(e) => handleKeyPress(e, "email")}
+                  className="editable-input"
+                  placeholder="Enter email"
+                  autoFocus
+                  disabled={saving}
+                />
+                <div className="edit-buttons">
+                  <button 
+                    onClick={() => handleSave("email")} 
+                    disabled={saving}
+                    className="save-btn"
+                  >
+                    <FaCheck />
+                  </button>
+                  <button 
+                    onClick={() => handleCancel("email")} 
+                    disabled={saving}
+                    className="cancel-btn"
+                  >
+                    <FaTimes />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <span className="field-value">
+                {profile?.email || "Not set"}{" "}
+                <FaPen
+                  className="edit-icon"
+                  onClick={() => handleEdit("email")}
+                />
+              </span>
+            )}
+          </div>
+
           <div className="profile-field">
             <strong>Year:</strong>{" "}
             {editing.year ? (

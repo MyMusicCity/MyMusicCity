@@ -394,7 +394,7 @@ app.put("/api/me/profile", auth, async (req, res) => {
     const authUserId = req.user?.id;
     if (!authUserId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { year, major } = req.body;
+    const { year, major, username, email } = req.body;
 
     // Validate required fields
     if (!year || !major) {
@@ -433,6 +433,34 @@ app.put("/api/me/profile", auth, async (req, res) => {
     const previouslyComplete = user.year && user.major;
     user.year = year;
     user.major = major;
+    
+    // Update username if provided and valid
+    if (username && username.trim() && username !== user.username) {
+      const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 20);
+      if (cleanUsername.length >= 2) {
+        // Check if username is available
+        const existingUser = await User.findOne({ username: cleanUsername, _id: { $ne: user._id } });
+        if (existingUser) {
+          return res.status(400).json({
+            error: "USERNAME_TAKEN",
+            message: "Username already taken. Please choose another."
+          });
+        }
+        user.username = cleanUsername;
+      }
+    }
+    
+    // Update email if provided and valid
+    if (email && email.trim() && email !== user.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email.trim())) {
+        return res.status(400).json({
+          error: "INVALID_EMAIL",
+          message: "Please enter a valid email address."
+        });
+      }
+      user.email = email.trim().toLowerCase();
+    }
 
     await user.save();
     
