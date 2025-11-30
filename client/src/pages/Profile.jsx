@@ -216,6 +216,26 @@ export default function Profile() {
             <button onClick={handleLogout} className="logout-btn">
               Sign Out and Try Again
             </button>
+            
+            <div className="account-management">
+              <button 
+                className="cleanup-account-btn"
+                onClick={handleCleanupLegacy}
+                disabled={deleting}
+                title="Clean up conflicting legacy account data from before Auth0 migration"
+              >
+                {deleting ? "Cleaning..." : "🧹 Clean Up Account"}
+              </button>
+              
+              <button 
+                className="delete-account-btn" 
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                title="Permanently delete your account and all data"
+              >
+                {deleting ? 'Deleting...' : '🗑️ Delete My Account'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
