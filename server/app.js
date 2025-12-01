@@ -293,6 +293,12 @@ app.post("/api/admin/test/create-events", async (req, res) => {
   try {
     console.log("🧪 Creating test events to verify database functionality");
     
+    // Clean up any existing test events first
+    await Event.deleteMany({ source: "test" });
+    console.log("🧹 Cleaned up existing test events");
+    
+    const timestamp = Date.now();
+    
     // Create test events with enhanced images
     const testEvents = [
       {
@@ -308,7 +314,7 @@ app.post("/api/admin/test/create-events", async (req, res) => {
         genre: "Rock",
         musicType: "concert",
         venue: "The Ryman Auditorium",
-        url: "https://test-event-1.example.com",
+        url: `https://test-event-1-${timestamp}.example.com`,
         normalizedTitle: "test concert enhanced images",
         createdBy: null
       },
@@ -325,7 +331,7 @@ app.post("/api/admin/test/create-events", async (req, res) => {
         genre: "Jazz",
         musicType: "concert",
         venue: "Printer's Alley",
-        url: "https://test-event-2.example.com",
+        url: `https://test-event-2-${timestamp}.example.com`,
         normalizedTitle: "nashville jazz night premium",
         createdBy: null
       },
@@ -342,7 +348,7 @@ app.post("/api/admin/test/create-events", async (req, res) => {
         genre: "Country",
         musicType: "acoustic",
         venue: "Bluebird Cafe",
-        url: "https://test-event-3.example.com",
+        url: `https://test-event-3-${timestamp}.example.com`,
         normalizedTitle: "country showcase bluebird cafe",
         createdBy: null
       }
