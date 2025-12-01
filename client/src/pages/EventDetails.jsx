@@ -508,6 +508,7 @@ export default function EventDetails() {
                 🎵 RSVP to This Event
               </button>
             );
+          })()}
           </div>
 
           {/* Attendees Section */}
