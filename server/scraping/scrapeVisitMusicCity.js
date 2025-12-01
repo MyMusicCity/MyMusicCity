@@ -195,11 +195,13 @@ async function scrapeVisitMusicCity() {
       // Process images using the enhanced pipeline
       let imageResult;
       if (e.images && e.images.length > 0) {
-        console.log(`Processing ${e.images.length} images for event: ${eventData.title}`);
+        console.log(`🎨 Processing ${e.images.length} images for event: ${eventData.title}`);
         imageResult = await imageProcessor.processEventImages(e.images, eventData);
+        console.log(`   ✅ Image processed: ${imageResult.source}/${imageResult.quality}`);
       } else {
-        console.log(`No images found for event: ${eventData.title}, using fallback`);
+        console.log(`⚠️ No images found for event: ${eventData.title}, using fallback`);
         imageResult = imageProcessor.getFallbackResult(eventData);
+        console.log(`   🔄 Fallback image: ${imageResult.source}/${imageResult.quality}`);
       }
 
       const normalizedEvent = {
@@ -225,19 +227,29 @@ async function scrapeVisitMusicCity() {
     }
 
     // Filter for music events only and add genre classification
-    const musicEvents = normalized.filter(event => {
+    console.log(`🎵 Starting music classification for ${normalized.length} events...`);
+    const musicEvents = [];
+    const rejectedEvents = [];
+    
+    normalized.forEach(event => {
       const classification = classifyEvent(event);
       if (classification.isMusic) {
         // Add music-specific fields
         event.genre = classification.genre;
         event.musicType = classification.musicType;
         event.venue = classification.venue;
-        return true;
+        musicEvents.push(event);
+        console.log(`   ✅ MUSIC: ${event.title} (${classification.genre})`);
+      } else {
+        rejectedEvents.push(event);
+        console.log(`   ❌ NOT MUSIC: ${event.title}`);
       }
-      return false;
     });
 
-    console.log(`Filtered ${normalized.length} total events to ${musicEvents.length} music events`);
+    console.log(`🎯 Filtered ${normalized.length} total events to ${musicEvents.length} music events`);
+    if (rejectedEvents.length > 0) {
+      console.log(`📋 Rejected ${rejectedEvents.length} non-music events`);
+    }
 
     if (musicEvents.length === 0) {
       console.log("No music events to save for Visit Music City.");
@@ -258,17 +270,27 @@ async function scrapeVisitMusicCity() {
       return true;
     });
 
+    console.log(`🔍 Duplicate detection: found ${existing.length} existing events`);
+    existing.forEach(ex => console.log(`   🔄 Existing: ${ex.title}`));
+    
     if (newEvents.length === 0) {
-      console.log("No new Visit Music City events to add.");
+      console.log(`⚠️ No new Visit Music City events to add (${musicEvents.length} were duplicates)`);
     } else {
+      console.log(`💾 Attempting to save ${newEvents.length} new events...`);
+      newEvents.forEach((ev, i) => {
+        console.log(`   ${i+1}. ${ev.title} | ${ev.source} | ${ev.imageSource}/${ev.imageQuality}`);
+      });
+      
       try {
-        await Event.insertMany(newEvents, { ordered: false });
-        console.log(`Added ${newEvents.length} new Visit Music City events.`);
+        const insertResult = await Event.insertMany(newEvents, { ordered: false });
+        console.log(`✅ Successfully added ${insertResult.length} new Visit Music City events.`);
       } catch (dbErr) {
         if (dbErr && dbErr.code === 11000) {
-          console.warn("Some VisitMusicCity events were skipped due to duplicate keys (unique index)");
+          console.warn(`⚠️ Some VisitMusicCity events were skipped due to duplicate keys (unique index)`);
         } else {
-          console.error("Failed to insert VisitMusicCity events:", dbErr && dbErr.message ? dbErr.message : dbErr);
+          console.error(`❌ Failed to insert VisitMusicCity events:`, dbErr && dbErr.message ? dbErr.message : dbErr);
+          console.error(`   Error code: ${dbErr.code}`);
+          console.error(`   Error name: ${dbErr.name}`);
         }
       }
     }

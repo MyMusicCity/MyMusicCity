@@ -83,6 +83,18 @@ function isMusicEvent(title, description = "", location = "") {
   }
   
   // Decision logic: music event if music score > non-music score AND music score > 0
+  // OR if it's from a known Nashville source (be more permissive for Nashville events)
+  const isFromNashvilleSource = location.toLowerCase().includes('nashville') || 
+                               location.toLowerCase().includes('music city') ||
+                               text.includes('nashville') ||
+                               text.includes('music city');
+                               
+  // More permissive logic for Nashville events
+  if (isFromNashvilleSource && musicScore > 0 && nonMusicScore < 3) {
+    return true;
+  }
+  
+  // Original logic for other events
   return musicScore > nonMusicScore && musicScore > 0;
 }
 

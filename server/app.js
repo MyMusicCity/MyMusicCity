@@ -288,6 +288,111 @@ app.post("/api/admin/scrape/all", async (req, res) => {
   }
 });
 
+// ⭐ TEST EVENT CREATION ENDPOINT
+app.post("/api/admin/test/create-events", async (req, res) => {
+  try {
+    console.log("🧪 Creating test events to verify database functionality");
+    
+    // Create test events with enhanced images
+    const testEvents = [
+      {
+        title: "Test Concert - Enhanced Images",
+        description: "Test event to verify enhanced image processing",
+        date: new Date(Date.now() + 86400000), // Tomorrow
+        location: "The Ryman Auditorium, Nashville, TN",
+        image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=240&fit=crop&auto=format",
+        imageSource: "scraped",
+        imageQuality: "high",
+        imageProcessedAt: new Date(),
+        source: "test",
+        genre: "Rock",
+        musicType: "Live Music",
+        venue: "The Ryman Auditorium",
+        url: "https://test-event-1.example.com",
+        normalizedTitle: "test concert enhanced images",
+        createdBy: null
+      },
+      {
+        title: "Nashville Jazz Night - Premium",
+        description: "Test jazz event with enhanced image processing",
+        date: new Date(Date.now() + 172800000), // Day after tomorrow
+        location: "Printer's Alley, Nashville, TN",
+        image: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=240&fit=crop&auto=format",
+        imageSource: "scraped",
+        imageQuality: "high",
+        imageProcessedAt: new Date(),
+        source: "test",
+        genre: "Jazz",
+        musicType: "Live Music",
+        venue: "Printer's Alley",
+        url: "https://test-event-2.example.com",
+        normalizedTitle: "nashville jazz night premium",
+        createdBy: null
+      },
+      {
+        title: "Country Showcase at Bluebird Cafe",
+        description: "Test country event with fallback image processing",
+        date: new Date(Date.now() + 259200000), // 3 days from now
+        location: "Bluebird Cafe, Nashville, TN",
+        image: "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=400&h=240&fit=crop&auto=format",
+        imageSource: "generated",
+        imageQuality: "medium",
+        imageProcessedAt: new Date(),
+        source: "test",
+        genre: "Country",
+        musicType: "Acoustic",
+        venue: "Bluebird Cafe",
+        url: "https://test-event-3.example.com",
+        normalizedTitle: "country showcase bluebird cafe",
+        createdBy: null
+      }
+    ];
+    
+    console.log(`📝 Attempting to create ${testEvents.length} test events...`);
+    
+    // Insert test events
+    const insertResult = await Event.insertMany(testEvents, { ordered: false });
+    console.log(`✅ Successfully created ${insertResult.length} test events`);
+    
+    // Verify they were saved
+    const totalEvents = await Event.countDocuments();
+    const recentEvents = await Event.countDocuments({ 
+      date: { $gte: new Date() }
+    });
+    const enhancedEvents = await Event.countDocuments({
+      imageSource: { $exists: true, $ne: null }
+    });
+    
+    res.json({
+      success: true,
+      message: `Successfully created ${insertResult.length} test events`,
+      details: {
+        created: insertResult.length,
+        totalEvents: totalEvents,
+        futureEvents: recentEvents,
+        enhancedEvents: enhancedEvents
+      },
+      events: insertResult.map(e => ({
+        id: e._id,
+        title: e.title,
+        date: e.date,
+        source: e.source,
+        imageSource: e.imageSource,
+        imageQuality: e.imageQuality
+      }))
+    });
+    
+  } catch (error) {
+    console.error("❌ Test event creation failed:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create test events",
+      details: error.message,
+      errorCode: error.code
+    });
+  }
+});
+
 // Deployment info helper
 app.get("/api/deploy-info", (_req, res) => {
   res.json({
