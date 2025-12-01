@@ -1,30 +1,9 @@
 const puppeteer = require("puppeteer");
 const { chromium } = require("playwright");
 const Event = require("../models/Event");
+const normalizeTitle = require("../utils/normalizeTitle");
+const enhancedImageProcessor = require("../utils/enhancedEventImages");
 const crypto = require('crypto');
-
-// Simple title normalization function
-function normalizeTitle(title) {
-  return title.toLowerCase().trim().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ');
-}
-
-// Simple image processor fallback
-const imageProcessor = {
-  async processEventImages(images, eventData) {
-    return {
-      url: images[0] || "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=240&fit=crop&auto=format",
-      source: "scraped",
-      quality: "medium"
-    };
-  },
-  getFallbackResult(eventData) {
-    return {
-      url: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=240&fit=crop&auto=format",
-      source: "fallback",
-      quality: "medium"
-    };
-  }
-};
 
 async function scrapeNashvilleScene() {
   let browser;
@@ -103,6 +82,7 @@ async function scrapeNashvilleScene() {
 
     // Process each event
     const formattedEvents = [];
+    const imageProcessor = enhancedImageProcessor;
 
     for (const [index, e] of events.entries()) {
       let parsedDate;

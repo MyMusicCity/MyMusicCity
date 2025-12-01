@@ -80,8 +80,10 @@ const EventSchema = new mongoose.Schema({
     default: Date.now 
   }
 });
-// Compound index to avoid duplicate inserts when source provides a canonical URL.
-// Sparse so it doesn't block events without URLs.
-EventSchema.index({ source: 1, url: 1 }, { unique: true, sparse: true });
+// Content-based duplicate prevention - more reliable than URL-based
+// This prevents true duplicate events while allowing URL flexibility
+EventSchema.index({ title: 1, date: 1, location: 1 }, { unique: true, sparse: true });
+// Keep source indexing for performance
+EventSchema.index({ source: 1 });
 
 module.exports = mongoose.model("Event", EventSchema);
