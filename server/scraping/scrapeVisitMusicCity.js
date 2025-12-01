@@ -126,7 +126,18 @@ async function scrapeVisitMusicCity() {
       events = await page.evaluate(() => {
         const sel = Array.from(document.querySelectorAll(".event, .card, article, .vmc-event, .listing"));
         return sel.map((el) => {
-          const title = el.querySelector("h2,h3,.title")?.textContent?.trim() || "";
+          // Try multiple title selectors to avoid "Untitled Event"
+          const titleSelectors = ['h1', 'h2', 'h3', 'h4', '.title', '.event-title', '.name', '[class*="Title"]'];
+          let title = "";
+          
+          for (const selector of titleSelectors) {
+            const titleEl = el.querySelector(selector);
+            if (titleEl && titleEl.textContent.trim()) {
+              title = titleEl.textContent.trim();
+              break;
+            }
+          }
+          
           const dateText = el.querySelector("time")?.getAttribute("datetime") || el.querySelector(".date, .event-date")?.textContent?.trim() || "";
           const location = el.querySelector(".venue, .location")?.textContent?.trim() || "";
           
@@ -160,14 +171,19 @@ async function scrapeVisitMusicCity() {
           });
 
           const link = el.querySelector("a")?.href || null;
-          return { 
-            title, 
-            dateText, 
-            location, 
-            images: [...new Set(images)], // Remove duplicates
-            url: link 
-          };
-        });
+          
+          // Only return if we found a meaningful title (not empty, not just whitespace, not "undefined")
+          if (title && title.length > 3 && !title.toLowerCase().includes('undefined')) {
+            return { 
+              title, 
+              dateText, 
+              location, 
+              images: [...new Set(images)], // Remove duplicates
+              url: link 
+            };
+          }
+          return null; // Filter out events without proper titles
+        }).filter(Boolean); // Remove null entries
       });
     }
 
@@ -277,15 +293,28 @@ async function scrapeVisitMusicCity() {
 
     const titles = musicEvents.map((e) => e.title);
     const urls = musicEvents.map((e) => e.url).filter(Boolean);
+    // Enhanced duplicate detection - prioritize URL over title for "Untitled Event" cases
     const queryOr = [];
-    if (titles.length) queryOr.push({ title: { $in: titles } });
-    if (urls.length) queryOr.push({ url: { $in: urls } });
+    if (urls.length) queryOr.push({ url: { $in: urls } }); // Check URLs first
+    if (titles.length) {
+      // Only check titles if they're not all "Untitled Event"
+      const uniqueTitles = [...new Set(titles)];
+      if (uniqueTitles.length > 1 || !uniqueTitles[0].includes('Untitled')) {
+        queryOr.push({ title: { $in: titles } });
+      }
+    }
+    
     const existing = queryOr.length ? await Event.find({ $or: queryOr }).select("title url") : [];
-    const existingTitles = new Set(existing.map((x) => x.title));
     const existingUrls = new Set(existing.map((x) => x.url).filter(Boolean));
+    const existingTitles = new Set(existing.map((x) => x.title));
+    
     const newEvents = musicEvents.filter((e) => {
-      if (existingUrls.has(e.url)) return false;
-      if (existingTitles.has(e.title)) return false;
+      // For events with URLs, use URL as primary duplicate check
+      if (e.url && existingUrls.has(e.url)) return false;
+      
+      // For titled events (not "Untitled Event"), check title duplicates
+      if (e.title && !e.title.includes('Untitled') && existingTitles.has(e.title)) return false;
+      
       return true;
     });
 

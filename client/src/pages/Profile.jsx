@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { FaPen, FaCheck, FaTimes, FaExclamationTriangle } from "react-icons/fa";
 import { useAuth0 } from "@auth0/auth0-react";
 import { AuthContext } from "../AuthContext";
-import { getCurrentUser, updateUserProfile, deleteAccount, emergencyCleanup } from "../api";
+import { getCurrentUser, updateUserProfile, deleteAccount } from "../api";
 import "../styles.css";
 
 export default function Profile() {
@@ -54,26 +54,26 @@ export default function Profile() {
         if (err.message.includes("User profile not found")) {
           setError("We're setting up your profile. Please try refreshing the page, or sign out and back in if this continues.");
         } else if (err.message.includes("INVALID_TOKEN_CLAIMS") || err.code === 'INVALID_TOKEN_CLAIMS') {
-          setError("Authentication issue detected. Please try the emergency cleanup option below to fix this.");
-          // Auto-suggest emergency cleanup after a delay
+          setError("Authentication issue detected. You may need to delete your account to resolve this.");
+          // Auto-suggest account deletion after a delay
           setTimeout(() => {
-            if (window.confirm('Profile loading failed due to invalid authentication. Would you like to try emergency cleanup to fix this?')) {
-              handleEmergencyCleanup();
+            if (window.confirm('Profile loading failed due to invalid authentication. Would you like to delete your account to resolve this issue?')) {
+              handleDeleteAccount();
             }
-          }, 2000);
+          }, 3000);
         } else if (err.code === 'ACCOUNT_CONFLICT') {
-          setError("Account conflict detected. Use the emergency cleanup option below to resolve this.");
+          setError("Account conflict detected. Delete your account below to resolve this.");
         } else if (err.status === 401) {
-          setError("Authentication failed. Please try the emergency cleanup option below.");
+          setError("Authentication failed. You may need to delete your account to resolve this.");
         } else if (err.message.includes("Unable to create user profile")) {
-          setError("There was an issue creating your profile. This may be due to a data conflict. Please try the 'Clean Up Account' option below, or contact support with this exact message: " + err.message);
+          setError("There was an issue creating your profile. This may be due to a data conflict. Please try deleting your account below, or contact support with this exact message: " + err.message);
         } else if (err.message.includes("Authentication required")) {
           setError("Please sign in again to access your profile.");
           setTimeout(() => navigate("/login"), 2000);
         } else if (err.message.includes("Username conflict") || err.message.includes("Email already exists") || err.message.includes("Account conflict")) {
-          setError("Account conflict detected: " + err.message + " Try the 'Clean Up Account' option below or contact support for assistance.");
+          setError("Account conflict detected: " + err.message + " Try deleting your account below or contact support for assistance.");
         } else {
-          setError(`Failed to load profile: ${err.message}. Try the emergency cleanup option if this persists.`);
+          setError(`Failed to load profile: ${err.message}. Try deleting your account if this persists.`);
         }
       } finally {
         setLoading(false);
@@ -212,11 +212,7 @@ export default function Profile() {
   };
 
   const handleDeleteAccount = async () => {
-    if (!window.confirm("Are you sure you want to delete your account? This action cannot be undone and will remove all your RSVPs.")) {
-      return;
-    }
-    
-    if (!window.confirm("This will permanently delete your account and all associated data. Are you absolutely sure?")) {
+    if (!window.confirm("Are you sure you want to delete your account? This will permanently remove your account, all RSVPs, and clean up any old account data. This action cannot be undone.")) {
       return;
     }
 
@@ -231,14 +227,7 @@ export default function Profile() {
       navigate("/");
     } catch (err) {
       console.error("Failed to delete account:", err);
-      
-      if (err.code === 'ACCOUNT_CONFLICT' || err.action === 'cleanup') {
-        setError(`${err.message} Try using the emergency cleanup option below.`);
-      } else if (err.status === 401) {
-        setError("Authentication failed. Please sign out and sign back in, then try again.");
-      } else {
-        setError(`Failed to delete account: ${err.message || err}`);
-      }
+      setError(`Failed to delete account: ${err.message || 'Unknown error'}. Please contact support if this persists.`);
     } finally {
       setDeleting(false);
     }
@@ -269,24 +258,15 @@ export default function Profile() {
               Sign Out and Try Again
             </button>
             
-            {/* Always show cleanup buttons in error state */}
+            {/* Simplified account management */}
             <div className="account-management">
-              <button 
-                className="cleanup-account-btn"
-                onClick={handleCleanupLegacy}
-                disabled={deleting}
-                title="Clean up conflicting legacy account data from before Auth0 migration"
-              >
-                {deleting ? "Cleaning..." : "🧹 Clean Up Account"}
-              </button>
-              
               <button 
                 className="delete-account-btn" 
                 onClick={handleDeleteAccount}
                 disabled={deleting}
                 title="Permanently delete your account and all data"
               >
-                {deleting ? 'Deleting...' : '🗑️ Delete My Account'}
+                {deleting ? 'Deleting...' : '🗑️ Delete Account & Clean Up'}
               </button>
             </div>
           </div>
@@ -391,21 +371,12 @@ export default function Profile() {
           {(error || profileIncomplete) && (
             <div className="account-management">
               <button 
-                className="cleanup-account-btn"
-                onClick={handleCleanupLegacy}
-                disabled={deleting}
-                title="Clean up conflicting legacy account data from before Auth0 migration"
-              >
-                {deleting ? "Cleaning..." : "🧹 Clean Up Account"}
-              </button>
-              
-              <button 
                 className="delete-account-btn" 
                 onClick={handleDeleteAccount}
                 disabled={deleting}
                 title="Permanently delete your account and all data"
               >
-                {deleting ? 'Deleting...' : '🗑️ Delete My Account'}
+                {deleting ? 'Deleting...' : '🗑️ Delete Account & Clean Up'}
               </button>
             </div>
           )}

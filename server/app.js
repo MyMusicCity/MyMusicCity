@@ -507,6 +507,38 @@ app.get("/api/events/current", async (req, res) => {
   }
 });
 
+// ⭐ DEBUG ENDPOINT - Check what events exist in database
+app.get("/api/debug/events", async (req, res) => {
+  try {
+    console.log("🔍 Debug: Checking events in database...");
+    
+    const totalCount = await Event.countDocuments();
+    console.log(`Total events in database: ${totalCount}`);
+    
+    const recentCount = await Event.countDocuments({
+      date: { $gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) }
+    });
+    console.log(`Recent events (last 2 weeks): ${recentCount}`);
+    
+    const sampleEvents = await Event.find({}).select("title date source").limit(10);
+    console.log("Sample events:", sampleEvents);
+    
+    res.json({
+      total: totalCount,
+      recent: recentCount,
+      sample: sampleEvents,
+      debug: "Database connection working"
+    });
+  } catch (err) {
+    console.error("Debug endpoint error:", err);
+    res.status(500).json({ 
+      error: "Database connection failed", 
+      details: err.message,
+      debug: "Check MongoDB connection" 
+    });
+  }
+});
+
 // ⭐ GET ALL EVENTS WITH RSVP + COMMENT COUNTS
 app.get("/api/events", async (req, res) => {
   try {
@@ -877,7 +909,7 @@ app.put("/api/me/profile", auth, async (req, res) => {
   }
 });
 
-// Delete user account
+// Delete user account (with automatic cleanup of old accounts)
 app.delete("/api/me/account", auth, async (req, res) => {
   try {
     const authUserId = req.user?.id;
@@ -902,16 +934,27 @@ app.delete("/api/me/account", auth, async (req, res) => {
 
     console.log(`Deleting account for user: ${user.username} (${user.email})`);
 
-    // Delete all user's RSVPs first
-    await Rsvp.deleteMany({ user: user._id });
-    console.log(`Deleted RSVPs for user: ${user.username}`);
+    // First, clean up any old/legacy accounts with the same email
+    const userEmail = user.email;
+    const allAccountsWithEmail = await User.find({ email: userEmail });
+    console.log(`Found ${allAccountsWithEmail.length} total accounts with email ${userEmail}`);
 
-    // Delete the user record
-    await User.findByIdAndDelete(user._id);
-    console.log(`Deleted user account: ${user.username}`);
+    let cleanedUpCount = 0;
+    for (const account of allAccountsWithEmail) {
+      // Delete all RSVPs first
+      await Rsvp.deleteMany({ user: account._id });
+      console.log(`Deleted RSVPs for account: ${account._id}`);
+
+      // Delete the account
+      await User.findByIdAndDelete(account._id);
+      console.log(`Deleted account: ${account._id}`);
+      cleanedUpCount++;
+    }
+
+    console.log(`Deleted ${cleanedUpCount} accounts (including legacy) for email: ${userEmail}`);
 
     res.json({ 
-      message: "Account successfully deleted. Please also revoke access in your Auth0 account if needed." 
+      message: "Account successfully deleted along with any old account data. You have been completely removed from the system." 
     });
 
   } catch (err) {
@@ -1101,25 +1144,10 @@ app.post(
         });
       }
       
-      // Check if profile is complete for Auth0 users
-      if (req.user?.auth0Id && (!foundUser.year || !foundUser.major)) {
-        return res.status(403).json({
-          error: "PROFILE_INCOMPLETE",
-          message: "Please complete your profile before RSVPing to events",
-          action: "complete-profile",
-          profileStatus: {
-            hasYear: !!foundUser.year,
-            hasMajor: !!foundUser.major
-          }
-        });
-      }
-
-      // Enforce profile completion for RSVPs
-      if (!foundUser.year || !foundUser.major) {
-        return res.status(400).json({ 
-          error: "Please complete your profile (year and major) before RSVPing to events.",
-          profileIncomplete: true
-        });
+      // Optional profile completion check - allow RSVPs but encourage profile completion
+      const hasIncompleteProfile = !foundUser.year || !foundUser.major;
+      if (hasIncompleteProfile && req.user?.auth0Id) {
+        console.log(`Auth0 user ${foundUser.username} RSVPing with incomplete profile - reminding to complete later`);
       }
 
       const foundEvent = await Event.findById(eventId).select("_id title");

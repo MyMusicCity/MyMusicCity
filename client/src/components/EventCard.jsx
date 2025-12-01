@@ -6,6 +6,20 @@ import { FaRegCommentDots } from "react-icons/fa";
 export default function EventCard({ event }) {
   if (!event) return null;
 
+  // Format date for display
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric'
+      });
+    } catch (error) {
+      return dateString; // Fallback to original if formatting fails
+    }
+  };
+
   // Server now returns rsvpCount; fall back to older shapes for backward compat.
   const attendeeCount =
     event.rsvpCount ||
@@ -56,7 +70,7 @@ export default function EventCard({ event }) {
         >
           {/* DATE (left) */}
           <p className="date" style={{ margin: 0 }}>
-            {event.date}
+            {formatDate(event.date)}
           </p>
 
           {/* ICONS (right) */}

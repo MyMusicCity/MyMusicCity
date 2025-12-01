@@ -109,7 +109,7 @@ async function findOrCreateAuth0User(auth0Id, email) {
         // Create new user with blank fields for user to fill
         const newUserData = {
           username: finalUsername,
-          email: '', // Leave blank for user to fill
+          email: userEmail || email.toLowerCase().trim() || `${auth0Id}@temp.local`, // Use actual email or fallback
           password: 'auth0-user', // Placeholder for Auth0 users
           auth0Id: auth0Id,
           year: null,

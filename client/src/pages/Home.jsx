@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import "../styles.css";
 import { FiSearch } from "react-icons/fi";
 import LoadingSpinner from "../components/LoadingSpinner";
-import { ping, getEvents } from "../api";
+import { ping, getEvents, API_BASE } from "../api";
 import EventCard from "../components/EventCard"; // ⭐ Use EventCard everywhere
 
 // Temporary fallback data for local dev
@@ -12,7 +12,7 @@ const MOCK_EVENTS = [
     id: 1,
     title: "Celebrate Nashville",
     location: "Centennial Park",
-    date: "OCT 4, 2025",
+    date: "2025-12-05T19:00:00.000Z",
     image:
       "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=240&fit=crop&auto=format",
   },
@@ -20,17 +20,49 @@ const MOCK_EVENTS = [
     id: 2,
     title: "Basement East — Local Showcase",
     location: "The Basement East",
-    date: "OCT 6, 2025",
+    date: "2025-12-08T20:00:00.000Z",
     image:
       "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=400&h=240&fit=crop&auto=format",
   },
   {
     id: 3,
     title: "Jazz Night on 5th",
-    location: "Printer’s Alley",
-    date: "OCT 9, 2025",
+    location: "Printer's Alley",
+    date: "2025-12-12T21:00:00.000Z",
     image:
       "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=240&fit=crop&auto=format",
+  },
+  {
+    id: 4,
+    title: "Country Music Hall of Fame Concert",
+    location: "Country Music Hall of Fame",
+    date: "2025-12-15T19:30:00.000Z",
+    image:
+      "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=240&fit=crop&auto=format",
+  },
+  {
+    id: 5,
+    title: "Indie Pop Showcase",
+    location: "Marathon Music Works",
+    date: "2025-12-18T20:30:00.000Z",
+    image:
+      "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=400&h=240&fit=crop&auto=format",
+  },
+  {
+    id: 6,
+    title: "Hip-Hop Underground",
+    location: "The End",
+    date: "2025-12-22T22:00:00.000Z",
+    image:
+      "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=240&fit=crop&auto=format",
+  },
+  {
+    id: 7,
+    title: "New Year's Eve Jazz Celebration",
+    location: "Schermerhorn Symphony Center",
+    date: "2025-12-31T23:00:00.000Z",
+    image:
+      "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=240&fit=crop&auto=format",
   },
 ];
 
@@ -39,8 +71,9 @@ function inferGenre(title = "") {
   title = title.toLowerCase();
   if (title.includes("jazz")) return "Jazz";
   if (title.includes("country")) return "Country";
-  if (title.includes("rap") || title.includes("hip-hop")) return "Rap";
-  if (title.includes("pop")) return "Pop";
+  if (title.includes("rap") || title.includes("hip-hop") || title.includes("hip hop")) return "Hip-Hop";
+  if (title.includes("pop") || title.includes("indie")) return "Pop";
+  if (title.includes("showcase") || title.includes("local")) return "Indie";
   return "Other";
 }
 
@@ -87,7 +120,7 @@ export default function Home() {
     (async () => {
       try {
         // Use the new /api/events/current endpoint for better filtering
-        const response = await fetch('/api/events/current');
+        const response = await fetch(`${API_BASE}/api/events/current`);
         const apiEvents = await response.json();
         
         if (mounted && Array.isArray(apiEvents) && apiEvents.length > 0) {
@@ -96,6 +129,7 @@ export default function Home() {
           return;
         }
       } catch (err) {
+        console.log('Primary API endpoint failed:', err.message);
         // Fallback to old endpoint if new one fails
         try {
           const apiEvents = await getEvents();
@@ -113,16 +147,21 @@ export default function Home() {
             setLoading(false);
             return;
           }
-        } catch (err2) {}
+        } catch (err2) {
+          console.log('Fallback API endpoint failed:', err2.message);
+        }
       }
 
-      // Fallback to mock events if backend unreachable
-      setTimeout(() => {
-        if (mounted) {
-          setEvents(MOCK_EVENTS);
-          setLoading(false);
-        }
-      }, 600);
+      // Final fallback to mock events if both endpoints fail
+      if (mounted) {
+        console.log('Using mock events as final fallback');
+        setTimeout(() => {
+          if (mounted) {
+            setEvents(MOCK_EVENTS);
+            setLoading(false);
+          }
+        }, 600);
+      }
     })();
 
     return () => (mounted = false);
@@ -157,6 +196,20 @@ export default function Home() {
         ? new Date(a.date) - new Date(b.date)
         : new Date(b.date) - new Date(a.date)
     );
+
+  // Debug logging
+  console.log("🔍 Event filtering debug:", {
+    totalEvents: events.length,
+    filteredEvents: filteredEvents.length,
+    searchTerm,
+    selectedGenres: genres,
+    dateFilters: { startDate, endDate },
+    sampleEvents: events.slice(0, 3).map(e => ({
+      title: e.title,
+      date: e.date,
+      genre: inferGenre(e.title)
+    }))
+  });
 
   const toggleGenre = (genre) => {
     setGenres((prev) =>

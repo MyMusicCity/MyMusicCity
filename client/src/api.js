@@ -6,6 +6,9 @@ const API_BASE = (
   process.env.REACT_APP_API_URL || (typeof window !== "undefined" && window.location && window.location.origin) || ""
 ).replace(/\/$/, "");
 
+// Export API_BASE for use in other components
+export { API_BASE };
+
 // Helper to get Auth0 token from the current context
 let getAccessTokenSilently = null;
 
@@ -355,24 +358,6 @@ export async function deleteAccount() {
   
   if (!res.ok) {
     await handleApiError(res, 'Account deletion');
-  }
-  
-  return res.json();
-}
-
-// Emergency cleanup function
-export async function emergencyCleanup(email) {
-  if (!API_BASE) throw new Error("No API base URL configured");
-  
-  const res = await fetchWithTimeout(`${API_BASE}/api/emergency-cleanup`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ email }),
-  });
-  
-  if (!res.ok) {
-    await handleApiError(res, 'Emergency cleanup');
   }
   
   return res.json();
