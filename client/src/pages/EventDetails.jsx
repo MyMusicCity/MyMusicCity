@@ -24,6 +24,20 @@ export default function EventDetails() {
   const { user } = useContext(AuthContext);
   const [attendees, setAttendees] = useState([]);
 
+  // Format date for display (same as EventCard)
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric'
+      });
+    } catch (error) {
+      return dateString; // Fallback to original if formatting fails
+    }
+  };
+
   /* ===========================
         COMMENT STATE
   =========================== */
@@ -281,7 +295,7 @@ export default function EventDetails() {
 
       <div className="event-details-content">
         <h1>{event.title}</h1>
-        <p className="event-date">{event.date}</p>
+        <p className="event-date">{formatDate(event.date)}</p>
         <p className="event-location">📍 {event.location}</p>
 
         {/* ========================
