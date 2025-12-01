@@ -29,6 +29,11 @@ const imageProcessor = {
 
 async function scrapeNashvilleScene() {
   let browser;
+  let browserInfo = {
+    instance: null,
+    type: null,
+    navigationOptions: null
+  };
   const shouldCloseConnection = !global.mongoConnection;
 
   try {
@@ -81,12 +86,6 @@ async function scrapeNashvilleScene() {
     }
 
     console.log('🚀 Starting enhanced browser launch sequence...');
-    
-    let browserInfo = {
-      instance: null,
-      type: null,
-      navigationOptions: null
-    };
 
     try {
       console.log('🎯 Attempting Playwright Chromium launch...');
@@ -95,11 +94,9 @@ async function scrapeNashvilleScene() {
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       });
       
-      browserInfo = {
-        instance: browser,
-        type: 'playwright',
-        navigationOptions: getNavigationOptions('playwright')
-      };
+      browserInfo.instance = browser;
+      browserInfo.type = 'playwright';
+      browserInfo.navigationOptions = getNavigationOptions('playwright');
       
       console.log('✅ Playwright Chromium launched successfully!');
       console.log(`🔧 Browser type: ${browserInfo.type}, waitUntil: ${browserInfo.navigationOptions.waitUntil}`);
@@ -167,11 +164,9 @@ async function scrapeNashvilleScene() {
               ]
             });
             
-            browserInfo = {
-              instance: browser,
-              type: 'puppeteer',
-              navigationOptions: getNavigationOptions('puppeteer')
-            };
+            browserInfo.instance = browser;
+            browserInfo.type = 'puppeteer';
+            browserInfo.navigationOptions = getNavigationOptions('puppeteer');
             
             console.log(`✅ Puppeteer launched successfully with: ${executablePath}`);
             console.log(`🔧 Browser type: ${browserInfo.type}, waitUntil: ${browserInfo.navigationOptions.waitUntil}`);
@@ -214,11 +209,9 @@ async function scrapeNashvilleScene() {
             ]
           });
           
-          browserInfo = {
-            instance: browser,
-            type: 'puppeteer',
-            navigationOptions: getNavigationOptions('puppeteer')
-          };
+          browserInfo.instance = browser;
+          browserInfo.type = 'puppeteer';
+          browserInfo.navigationOptions = getNavigationOptions('puppeteer');
           
           console.log('✅ Puppeteer launched with bundled Chromium!');
           console.log(`🔧 Browser type: ${browserInfo.type}, waitUntil: ${browserInfo.navigationOptions.waitUntil}`);
