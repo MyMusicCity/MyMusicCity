@@ -6,24 +6,16 @@ import { AuthContext } from "../AuthContext";
 import { getCurrentUser, updateUserProfile, deleteAccount } from "../api";
 import "../styles.css";
 
-// Helper function for Vanderbilt-themed avatar generation (First + Last initials)
+// Helper function for Vanderbilt-themed avatar generation (First letter only)
 const getAvatarText = (username, email, fullName) => {
-  // Try to get initials from full name first
+  // Try to get first letter from full name first
   if (fullName && fullName.trim()) {
-    const names = fullName.trim().split(' ');
-    if (names.length >= 2) {
-      return (names[0][0] + names[names.length - 1][0]).toUpperCase();
-    }
-    return names[0][0].toUpperCase();
+    return fullName.trim()[0].toUpperCase();
   }
   
-  // Try to extract from username (if it looks like "firstname lastname" or "firstnamelastname")
+  // Try to get first letter from username
   if (username && username.trim()) {
-    const parts = username.trim().split(/[\s._-]+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    }
-    return username[0].toUpperCase();
+    return username.trim()[0].toUpperCase();
   }
   
   // Fallback to email
