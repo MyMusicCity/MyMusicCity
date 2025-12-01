@@ -14,8 +14,13 @@ mkdir -p /opt/render/.cache/ms-playwright
 echo "🌐 Installing Puppeteer Chrome..."
 timeout 300 npx puppeteer browsers install chrome || echo "Puppeteer Chrome installation timed out or failed"
 
-echo "🌐 Installing Playwright Chromium..."
+echo "🌐 Installing Playwright browsers..."
+timeout 300 npx playwright install --with-deps chromium || echo "Playwright installation failed, trying without deps..."
 timeout 300 npx playwright install chromium || echo "Playwright Chromium installation timed out or failed"
+
+# Alternative Playwright installation
+echo "🔄 Alternative Playwright installation..."
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=false npx playwright install chromium || echo "Alternative Playwright installation failed"
 
 # Try system Chrome as backup
 echo "🔧 Installing system Chrome as fallback..."

@@ -36,6 +36,11 @@ async function scrapeNashvilleScene() {
 
     // Load environment from parent directory
     require('dotenv').config({ path: '../.env' });
+    
+    // Production browser setup
+    if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
+      console.log("🌐 Production environment detected - ensuring browsers are available...");
+    }
 
     console.log("🔧 Scraping config: timeout=120000ms, waitUntil=networkidle, retries=1");
 
@@ -69,11 +74,38 @@ async function scrapeNashvilleScene() {
       console.log('✅ Playwright Chromium launched successfully!');
     } catch (err) {
       console.error('❌ Playwright failed:', err.message);
-      throw err;
+      console.log('🔄 Falling back to Puppeteer...');
+      
+      try {
+        browser = await puppeteer.launch({
+          headless: true,
+          args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox', 
+            '--disable-dev-shm-usage', 
+            '--disable-gpu',
+            '--no-zygote',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor'
+          ]
+        });
+        console.log('✅ Puppeteer launched successfully as fallback!');
+      } catch (puppeteerErr) {
+        console.error('❌ Both Playwright and Puppeteer failed:', puppeteerErr.message);
+        throw new Error('Browser launch failed: Both Playwright and Puppeteer unavailable');
+      }
     }
 
     const page = await browser.newPage();
-    await page.setViewportSize({ width: 1280, height: 720 });
+    
+    // Set viewport based on browser type
+    if (browser.constructor.name === 'Browser') {
+      // Puppeteer
+      await page.setViewport({ width: 1280, height: 720 });
+    } else {
+      // Playwright
+      await page.setViewportSize({ width: 1280, height: 720 });
+    }
 
     // Scrape multiple DO615 pages for comprehensive music coverage
     const urlsToScrape = [
