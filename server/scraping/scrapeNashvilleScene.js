@@ -58,8 +58,8 @@ async function scrapeDo615() {
 
     console.log("Navigating to https://do615.com/events ...");
     await page.goto("https://do615.com/events", {
-      waitUntil: "networkidle2",
-      timeout: 60000,
+      waitUntil: SCRAPING_CONFIG.waitUntil,
+      timeout: SCRAPING_CONFIG.timeout,
     });
 
     await page.waitForSelector(".ds-listing.event-card", { timeout: 15000 });
