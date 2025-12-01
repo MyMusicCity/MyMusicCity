@@ -9,10 +9,13 @@ async function connectToDatabase() {
   
   const MONGO_URI = process.env.MONGO_URI;
   if (!MONGO_URI) {
+    console.error("❌ MONGO_URI environment variable not found in Vercel");
+    console.log("Available env vars:", Object.keys(process.env).filter(k => k.includes('MONGO')));
     throw new Error("❌ Missing MONGO_URI environment variable");
   }
   
-  await mongoose.connect(MONGO_URI, { dbName: "mymusiccity" });
+  // Don't override database name, use what's in the connection string
+  await mongoose.connect(MONGO_URI);
   isConnected = true;
   console.log("✅ Connected to MongoDB Atlas");
 }
@@ -32,7 +35,9 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    console.log('🔍 Starting debug/events API call');
     await connectToDatabase();
+    console.log('🔍 Database connected, running diagnostics...');
     
     console.log("🔍 Debug: Checking events in database...");
     
