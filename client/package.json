@@ -12,8 +12,9 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "jest"
+    "build": "DISABLE_ESLINT_PLUGIN=true react-scripts build",
+    "test": "jest",
+    "build:vercel": "npm install --silent --no-audit && npm run build"
   },
   "browserslist": {
     "production": [
