@@ -54,7 +54,7 @@ export default function EventCard({ event }) {
             event.image ||
             `https://picsum.photos/400/240?random=${event._id || event.id}`
           }
-          alt={event.title}
+          alt=""
           className="event-img"
         />
         {/* POPULAR BADGE */}

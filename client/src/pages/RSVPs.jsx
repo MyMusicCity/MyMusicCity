@@ -16,7 +16,9 @@ export default function RSVPs() {
     setLoading(true);
     try {
       const data = await getMeRsvps();
-      setRsvps(data || []);
+      // Filter out any RSVPs that don't have valid event data
+      const validRsvps = (data || []).filter(r => r && r.event && (r.event._id || r.event.id));
+      setRsvps(validRsvps);
       setError(null);
     } catch (err) {
       setError(err.message || "Failed to load RSVPs");
@@ -93,10 +95,10 @@ export default function RSVPs() {
       ) : rsvps.length > 0 ? (
         <div className="grid">
           {rsvps.map((r) => (
-            <div key={r._id || r.event?._id || Math.random()} className="rsvp-card-wrapper" style={{ position: 'relative' }}>
+            <div key={r._id || r.event._id || Math.random()} className="rsvp-card-wrapper" style={{ position: 'relative' }}>
               <EventCard event={r.event} />
               <button
-                onClick={() => handleUnRsvp(r.event?._id || r.event?.id, r.event?.title)}
+                onClick={() => handleUnRsvp(r.event._id || r.event.id, r.event.title)}
                 style={{
                   position: 'absolute',
                   top: '8px',
