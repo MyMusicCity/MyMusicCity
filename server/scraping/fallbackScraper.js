@@ -34,7 +34,7 @@ async function fallbackScrape() {
         url: "https://www.continentalmidtown.com",
         source: "fallback",
         genre: "Jazz",
-        musicType: "live",
+        musicType: "concert",
         venue: "The Continental Mid-Town",
         image: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=240&fit=crop&auto=format"
       },
@@ -46,7 +46,7 @@ async function fallbackScrape() {
         url: "https://www.tootsies.net",
         source: "fallback",
         genre: "Country",
-        musicType: "live",
+        musicType: "acoustic",
         venue: "Tootsies Orchid Lounge",
         image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=240&fit=crop&auto=format"
       },

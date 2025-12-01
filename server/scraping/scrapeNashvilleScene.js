@@ -174,7 +174,7 @@ async function scrapeDo615() {
         image: imageResult.url,
         imageSource: imageResult.source,
         imageQuality: imageResult.quality,
-        url: e.url,
+        url: e.url || `https://do615.com/events/generated/${Date.now()}-${index}`,
         createdBy: null, // avoid ObjectId casting issue
         source: "do615", // optional: mark origin
       };

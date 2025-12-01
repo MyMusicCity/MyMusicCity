@@ -9,7 +9,7 @@ const { fallbackScrape } = require("./fallbackScraper");
 // Production environment detection
 const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
 const SCRAPING_CONFIG = {
-  timeout: isProduction ? 180000 : 120000, // 3min for production scrapeAll, 2min for dev
+  timeout: isProduction ? 120000 : 60000, // 2min for production scrapeAll, 1min for dev
   maxRetries: isProduction ? 2 : 1,
   fallbackOnFailure: true
 };
@@ -130,7 +130,7 @@ async function run() {
     console.log("🏁 Combined scraping run complete.");
     console.log("📈 Active sources: DO615 (reliable music events)");
     console.log("📊 Check /api/debug/events endpoint to verify event count");
-    process.exit(exitCode === 0 && totalErrors === 0 ? 0 : 1);
+    process.exit(successfulScrapers > 0 && totalErrors === 0 ? 0 : 1);
     
   } catch (error) {
     console.error("\u274c Critical error during scraping:", error);
