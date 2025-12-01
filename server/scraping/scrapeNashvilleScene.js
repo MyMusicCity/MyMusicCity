@@ -39,10 +39,15 @@ async function scrapeNashvilleScene() {
       console.log('🔄 Production environment detected, ensuring browsers...');
       
       try {
-        // Install Puppeteer browser explicitly
-        const puppeteer = require('puppeteer');
+        // Install Puppeteer browser using modern API
         console.log('📦 Installing Puppeteer browser...');
-        await puppeteer.createBrowserFetcher().download(require('puppeteer/package.json').puppeteer.chromium_revision);
+        const { execSync } = require('child_process');
+        
+        // Use npx to install Chrome browser for Puppeteer
+        execSync('npx puppeteer browsers install chrome', { 
+          stdio: 'pipe',
+          timeout: 120000 // 2 minute timeout
+        });
         console.log('✅ Puppeteer browser installed successfully');
       } catch (installErr) {
         console.log('⚠️ Puppeteer browser installation failed:', installErr.message);
@@ -93,13 +98,39 @@ async function scrapeNashvilleScene() {
       
       try {
         // Try multiple Chrome executable paths for Render deployment
+        const fs = require('fs');
+        const path = require('path');
+        
+        // Helper function to find Chrome in Puppeteer cache
+        const findPuppeteerChrome = () => {
+          try {
+            const cacheDir = '/opt/render/.cache/puppeteer/chrome';
+            if (fs.existsSync(cacheDir)) {
+              const versions = fs.readdirSync(cacheDir);
+              for (const version of versions) {
+                // Try chrome-linux64 first (modern), then chrome-linux (legacy)
+                const modernPath = path.join(cacheDir, version, 'chrome-linux64', 'chrome');
+                const legacyPath = path.join(cacheDir, version, 'chrome-linux', 'chrome');
+                
+                if (fs.existsSync(modernPath)) return modernPath;
+                if (fs.existsSync(legacyPath)) return legacyPath;
+              }
+            }
+          } catch (err) {
+            console.log('📁 Error scanning Puppeteer cache:', err.message);
+          }
+          return null;
+        };
+        
+        const puppeteerChrome = findPuppeteerChrome();
+        
         const possiblePaths = [
           process.env.PUPPETEER_EXECUTABLE_PATH,
           '/usr/bin/google-chrome-stable',
           '/usr/bin/google-chrome',
           '/usr/bin/chromium-browser',
           '/usr/bin/chromium',
-          '/opt/render/.cache/puppeteer/chrome/linux-*/chrome-linux*/chrome'
+          puppeteerChrome
         ].filter(Boolean);
         
         let launchError;
