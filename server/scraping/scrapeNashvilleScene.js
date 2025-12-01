@@ -14,6 +14,7 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 // Production environment detection
 const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
+const BYPASS_MUSIC_FILTER = process.env.BYPASS_MUSIC_FILTER === 'true'; // Debug flag to disable filtering
 const SCRAPING_CONFIG = {
   timeout: isProduction ? 180000 : 120000, // 3min for production, 2min for dev
   waitUntil: isProduction ? 'load' : 'networkidle', // Faster load event for production
@@ -189,7 +190,26 @@ async function scrapeDo615() {
     // SIMPLIFIED MUSIC FILTERING: More inclusive to ensure we don't miss music events
     console.log(`🎵 Starting simplified music classification for ${formattedEvents.length} events...`);
     
-    const musicEvents = formattedEvents.filter(event => {
+    // Check if music filtering should be bypassed for debugging
+    if (BYPASS_MUSIC_FILTER) {
+      console.log('🚨 BYPASSING MUSIC FILTER - Including ALL events for debugging');
+      const musicEvents = formattedEvents.map(event => {
+        event.genre = 'Music'; // Mark all as music for debugging
+        event.musicType = 'Live';
+        console.log(`   ✅ BYPASS: ${event.title}`);
+        return event;
+      });
+      
+      console.log(`🎯 BYPASS MODE: Included all ${musicEvents.length} events as music events`);
+    } else {
+      // Normal filtering logic...
+    }
+    
+    const musicEvents = BYPASS_MUSIC_FILTER ? formattedEvents.map(event => {
+      event.genre = 'Music';
+      event.musicType = 'Live';
+      return event;
+    }) : formattedEvents.filter(event => {
       // Simple music detection - if it mentions music, instruments, venues, or performance terms
       const text = `${event.title} ${event.description} ${event.location}`.toLowerCase();
       
@@ -219,23 +239,34 @@ async function scrapeDo615() {
         text.includes('festival') && (text.includes('music') || text.includes('live'))
       );
       
-      // Exclude obvious non-music events
+      // Only exclude OBVIOUS non-music events (be more restrictive on exclusions)
       const isNonMusicEvent = (
-        text.includes('comedy') && !text.includes('music') ||
-        text.includes('standup') || text.includes('comedian') ||
+        (text.includes('comedy') && !text.includes('music')) ||
+        (text.includes('standup') && !text.includes('music')) ||
+        text.includes('comedian') ||
         text.includes('sports') || text.includes('football') || text.includes('basketball') ||
-        text.includes('lecture') || text.includes('seminar') || text.includes('conference') ||
-        text.includes('business meeting') || text.includes('workshop') && !text.includes('music')
+        text.includes('baseball') || text.includes('soccer') ||
+        text.includes('lecture') || text.includes('seminar') || 
+        (text.includes('conference') && !text.includes('music')) ||
+        text.includes('business meeting') || 
+        (text.includes('workshop') && !text.includes('music')) ||
+        text.includes('art gallery') || text.includes('museum') ||
+        text.includes('movie') || text.includes('film screening')
       );
       
-      if (isMusicEvent && !isNonMusicEvent) {
+      // PERMISSIVE LOGIC: If it's from Nashville/music city sources and not obviously non-music, include it
+      const isFromNashvilleSource = text.includes('nashville') || text.includes('music city') ||
+                                   event.source === 'do615';
+      
+      // Much more permissive: include if music indicators OR (Nashville source AND not obviously non-music)
+      if (isMusicEvent || (isFromNashvilleSource && !isNonMusicEvent)) {
         // Add simplified music fields
         event.genre = 'Music'; // Simplified - just mark as music
         event.musicType = 'Live'; // Simplified - assume live music
         console.log(`   ✅ MUSIC: ${event.title}`);
         return true;
       } else {
-        console.log(`   ❌ NOT MUSIC: ${event.title}`);
+        console.log(`   ❌ NOT MUSIC: ${event.title} (reason: ${isNonMusicEvent ? 'excluded category' : 'no music indicators'})`);
         return false;
       }
     });

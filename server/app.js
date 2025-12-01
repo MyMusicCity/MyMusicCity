@@ -426,17 +426,23 @@ app.get("/api/users", async (_req, res) => {
 // ⭐ GET CURRENT EVENTS (LAST 2 WEEKS) WITH ENHANCED FILTERING
 app.get("/api/events/current", async (req, res) => {
   try {
-    // For presentation: Show events from 1 month ago to 3 months forward
+    // Show events from 2 weeks ago to 3 months forward (more permissive than original)
     const now = new Date();
-    const presentationStartDate = new Date(now);
-    presentationStartDate.setMonth(now.getMonth() - 1);
+    const startDate = new Date(now);
+    startDate.setDate(now.getDate() - 14); // 2 weeks ago
     
-    const presentationEndDate = new Date(now);
-    presentationEndDate.setMonth(now.getMonth() + 3);
+    const endDate = new Date(now);
+    endDate.setMonth(now.getMonth() + 3); // 3 months forward
     
-    console.log('🚨 PRESENTATION MODE: Showing ALL events (no filtering)');
+    console.log('🔍 FETCHING EVENTS: Date range', startDate.toISOString().split('T')[0], 'to', endDate.toISOString().split('T')[0]);
     
-    let query = {}; // No filtering at all for presentation
+    let query = {
+      $or: [
+        { date: { $gte: startDate, $lte: endDate } },
+        { date: null }, // Include events without dates
+        { date: { $exists: false } } // Include events where date field doesn't exist
+      ]
+    };
     
     console.log('🔍 Query being executed:', JSON.stringify(query, null, 2));
     

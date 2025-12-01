@@ -94,6 +94,12 @@ function isMusicEvent(title, description = "", location = "") {
     return true;
   }
   
+  // Super permissive for events with no clear indicators but from Nashville sources
+  if (isFromNashvilleSource && musicScore === 0 && nonMusicScore === 0) {
+    // If no clear indicators either way, assume it's music in Nashville
+    return true;
+  }
+  
   // Original logic for other events
   return musicScore > nonMusicScore && musicScore > 0;
 }
@@ -178,11 +184,20 @@ function classifyEvent(event) {
   };
 }
 
+/**
+ * Bypass function for debugging - always returns true
+ * Use this temporarily to disable music filtering
+ */
+function bypassMusicFilter() {
+  return true;
+}
+
 module.exports = {
   isMusicEvent,
   classifyMusicType,
   extractVenue,
   classifyEvent,
+  bypassMusicFilter,
   musicKeywords,
   nonMusicKeywords,
   nashvilleMusicVenues
