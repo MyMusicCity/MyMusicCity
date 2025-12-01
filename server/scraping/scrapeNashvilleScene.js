@@ -210,4 +210,10 @@ async function scrapeDo615() {
   }
 }
 
-scrapeDo615();
+// Export the function for API triggers, but also run if called directly
+module.exports = scrapeDo615;
+
+// Only run if this file is executed directly (not required)
+if (require.main === module) {
+  scrapeDo615();
+}

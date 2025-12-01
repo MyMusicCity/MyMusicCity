@@ -237,9 +237,9 @@ app.post("/api/admin/scrape/all", async (req, res) => {
     
     // Try to run each scraper
     const scrapers = [
-      { name: "NashvilleScene", path: "./scraping/scrapeNashvilleScene" },
+      { name: "NashvilleScene", path: "./scraping/scrapeSceneCalendar" },
       { name: "VisitMusicCity", path: "./scraping/scrapeVisitMusicCity" },
-      { name: "SceneCalendar", path: "./scraping/scrapeSceneCalendar" }
+      { name: "Do615", path: "./scraping/scrapeNashvilleScene" } // Note: this file actually contains scrapeDo615
     ];
     
     for (const scraper of scrapers) {
