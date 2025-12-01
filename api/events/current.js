@@ -19,7 +19,7 @@ async function connectToDatabase() {
   console.log("✅ Connected to MongoDB Atlas");
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -135,4 +135,4 @@ export default async function handler(req, res) {
     console.error("Current events API error:", err);
     res.status(500).json({ error: "Failed to fetch current events", details: err.message });
   }
-}
+};
