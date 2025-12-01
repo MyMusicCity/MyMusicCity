@@ -32,17 +32,17 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* Only show navbar if logged in AND not on auth pages */}
-      {isAuthenticated && !hideNavbar && <Navbar />}
+      {/* Show navbar unless on auth pages */}
+      {!hideNavbar && <Navbar />}
 
       <div className="content">
         <Routes>
-          {/* Public routes */}
+          {/* Public routes - allow browsing without authentication */}
           <Route path="/login" element={<Login />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/event/:id" element={<EventDetails />} />
 
-          {/* Private routes - use isAuthenticated instead of just token */}
-          <Route path="/" element={isAuthenticated ? <Home /> : <Navigate to="/login" />} />
-          <Route path="/event/:id" element={isAuthenticated ? <EventDetails /> : <Navigate to="/login" />} />
+          {/* Private routes - require authentication */}
           <Route path="/rsvps" element={isAuthenticated ? <RSVPs /> : <Navigate to="/login" />} />
           <Route path="/profile" element={isAuthenticated ? <Profile /> : <Navigate to="/login" />} />
           <Route path="/profile/:id" element={isAuthenticated ? <ProfileView /> : <Navigate to="/login" />} />

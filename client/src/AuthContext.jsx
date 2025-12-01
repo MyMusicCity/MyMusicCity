@@ -49,9 +49,13 @@ export function AuthProvider({ children }) {
 
   // Validate Vanderbilt email domain
   const isValidVanderbiltUser = (user) => {
-    // Temporarily disable email restriction for testing
-    return true;
-    // return user?.email?.endsWith('@vanderbilt.edu');
+    // Check environment variable to enable/disable email restriction
+    const enforceVanderbiltEmail = process.env.REACT_APP_ENFORCE_VANDERBILT_EMAIL === 'true';
+    if (!enforceVanderbiltEmail) {
+      console.log('📧 Vanderbilt email restriction disabled for testing');
+      return true;
+    }
+    return user?.email?.endsWith('@vanderbilt.edu');
   };
 
   // Get token from Auth0

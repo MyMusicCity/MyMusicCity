@@ -76,6 +76,22 @@ body {
   color: #b1976b;
 }
 
+.nav-login-btn {
+  background: #2b2b2b;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.nav-login-btn:hover {
+  background: #1a1a1a;
+  color: white;
+  transform: translateY(-1px);
+}
+
 /* ===== USER DROPDOWN ===== */
 .user-dropdown {
   position: relative;
