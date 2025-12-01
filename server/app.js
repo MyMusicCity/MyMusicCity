@@ -434,51 +434,10 @@ app.get("/api/events/current", async (req, res) => {
     const presentationEndDate = new Date(now);
     presentationEndDate.setMonth(now.getMonth() + 3);
     
-    console.log('📅 Date range for current events API:');
-    console.log('  Start:', presentationStartDate.toISOString());
-    console.log('  End:', presentationEndDate.toISOString());
+    console.log('🚨 PRESENTATION MODE: Showing ALL events (no filtering)');
     
-    let query = { 
-      date: { 
-        $gte: presentationStartDate,
-        $lte: presentationEndDate
-      }
-    };
+    let query = {}; // No filtering at all for presentation
     
-    // Prioritize scraped events for presentation
-    if (!req.query.source) {
-      // Default to showing scraped events first, then fallback
-      query.$or = [
-        { source: 'do615' },
-        { source: 'nashvillescene' }, 
-        { source: 'visitmusiccity' },
-        { source: 'fallback' },
-        { source: 'presentation' }
-      ];
-    }
-    
-    // Optional filtering parameters
-    if (req.query.genre && req.query.genre !== 'all') {
-      query.genre = req.query.genre;
-    }
-    
-    if (req.query.venue) {
-      query.location = new RegExp(req.query.venue, 'i');
-    }
-    
-    if (req.query.source) {
-      query.source = req.query.source;
-    }
-    
-    // Custom date range
-    if (req.query.startDate) {
-      query.date = { ...query.date, $gte: new Date(req.query.startDate) };
-    }
-    
-    if (req.query.endDate) {
-      query.date = { ...query.date, $lte: new Date(req.query.endDate) };
-    }
-
     console.log('🔍 Query being executed:', JSON.stringify(query, null, 2));
     
     let events = await Event.find(query)
@@ -487,22 +446,21 @@ app.get("/api/events/current", async (req, res) => {
       .exec()
       .catch(() => []); // Graceful fallback
     
-    console.log('📊 Events found before processing:', events.length);
+    console.log('📊 Events found in database:', events.length);
     if (events.length > 0) {
-      console.log('📋 First few events:');
-      events.slice(0, 3).forEach(e => {
-        console.log(`  - ${e.title} (${e.source}, Date: ${e.date})`);
+      console.log('📋 Sample events from database:');
+      events.slice(0, 5).forEach(e => {
+        console.log(`  - ${e.title} (${e.source}, Date: ${e.date ? new Date(e.date).toISOString().split('T')[0] : 'NO DATE'})`);
       });
+      
+      // Show source breakdown
+      const sources = {};
+      events.forEach(e => {
+        sources[e.source] = (sources[e.source] || 0) + 1;
+      });
+      console.log('📊 Source breakdown:', sources);
     } else {
-      console.log('❌ No events found matching query criteria');
-      console.log('🚨 PRESENTATION MODE: Falling back to show ALL events in database');
-      // Fallback: show all events for presentation
-      events = await Event.find({})
-        .populate("createdBy", "username email")
-        .lean()
-        .exec()
-        .catch(() => []);
-      console.log('📊 Total events in database:', events.length);
+      console.log('❌ NO EVENTS FOUND IN DATABASE AT ALL!');
     }
 
     // Get RSVP counts with error handling
@@ -552,6 +510,9 @@ app.get("/api/events/current", async (req, res) => {
         return dateA - dateB;
       })
       .slice(0, 50); // Limit to 50 events for performance
+
+    console.log('📊 Events after sorting, before final response:', events.length);
+    console.log('🎯 Final events being returned:', events.slice(0, 3).map(e => `${e.title} (${e.source})`));
 
     res.json(events);
 
