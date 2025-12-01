@@ -4,6 +4,65 @@ const Event = require("../models/Event");
 const crypto = require('crypto');
 const { isMusicEvent, classifyEvent } = require('../utils/musicClassifier');
 
+// Browser detection and configuration utilities
+function getBrowserType(browser) {
+  // Playwright browsers have contexts property and version method
+  if (browser && browser.contexts && typeof browser.contexts === 'function') {
+    return 'playwright';
+  }
+  // Puppeteer browsers have newPage but no contexts function
+  if (browser && typeof browser.newPage === 'function' && !browser.contexts) {
+    return 'puppeteer';
+  }
+  return 'unknown';
+}
+
+function getNavigationOptions(browserType) {
+  const baseOptions = { timeout: 60000 };
+  
+  switch (browserType) {
+    case 'playwright':
+      return { ...baseOptions, waitUntil: 'networkidle' };
+    case 'puppeteer':
+      return { ...baseOptions, waitUntil: 'networkidle2' };
+    default:
+      return { ...baseOptions, waitUntil: 'load' };
+  }
+}
+
+async function safeNavigation(page, url, browserType, maxRetries = 3) {
+  let navigationOptions = getNavigationOptions(browserType);
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🌐 Navigation attempt ${attempt}/${maxRetries} to ${url}`);
+      await page.goto(url, navigationOptions);
+      console.log(`✅ Successfully navigated to ${url}`);
+      return true;
+    } catch (navErr) {
+      console.log(`⚠️ Navigation attempt ${attempt}/${maxRetries} failed: ${navErr.message}`);
+      
+      if (attempt < maxRetries) {
+        // Try fallback options on subsequent attempts
+        if (attempt === 2) {
+          navigationOptions = { ...navigationOptions, waitUntil: 'domcontentloaded' };
+          console.log(`🔄 Trying fallback: domcontentloaded`);
+        } else if (attempt === 3) {
+          navigationOptions = { ...navigationOptions, waitUntil: 'load' };
+          console.log(`🔄 Trying final fallback: load`);
+        }
+        
+        console.log(`🔄 Retrying in 2 seconds...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } else {
+        console.error(`❌ All navigation attempts failed for ${url}`);
+        throw navErr;
+      }
+    }
+  }
+  return false;
+}
+
 // Simple title normalization function
 function normalizeTitle(title) {
   return title.toLowerCase().trim().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ');
@@ -164,6 +223,7 @@ async function scrapeNashvilleScene() {
               ]
             });
             
+            // Only set browserInfo after successful launch
             browserInfo.instance = browser;
             browserInfo.type = 'puppeteer';
             browserInfo.navigationOptions = getNavigationOptions('puppeteer');
@@ -174,6 +234,7 @@ async function scrapeNashvilleScene() {
           } catch (pathErr) {
             console.log(`❌ Failed with ${executablePath}: ${pathErr.message}`);
             launchError = pathErr;
+            // Don't set browserInfo on failure - continue to next path
             continue;
           }
         }
@@ -222,6 +283,23 @@ async function scrapeNashvilleScene() {
         throw new Error('Browser launch failed: Both Playwright and Puppeteer unavailable');
       }
     }
+
+    // Safety check: ensure browserInfo is properly configured
+    if (!browserInfo.instance) {
+      throw new Error('Browser instance not available');
+    }
+    
+    if (!browserInfo.type) {
+      console.log('⚠️ Browser type unknown, detecting...');
+      browserInfo.type = getBrowserType(browserInfo.instance);
+    }
+    
+    if (!browserInfo.navigationOptions) {
+      console.log('⚠️ Navigation options missing, setting defaults...');
+      browserInfo.navigationOptions = getNavigationOptions(browserInfo.type);
+    }
+    
+    console.log(`🔧 Final browser configuration: ${browserInfo.type}, waitUntil: ${browserInfo.navigationOptions.waitUntil}`);
 
     const page = await browserInfo.instance.newPage();
     
