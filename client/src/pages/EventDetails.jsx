@@ -350,7 +350,7 @@ export default function EventDetails() {
         <button className="back-btn" onClick={() => navigate(-1)}>
           ← Back
         </button>
-      <img src={event.image} alt="" className="event-details-img" />
+      </div>
 
       <div className="event-card-detail">
         {event.image && (
