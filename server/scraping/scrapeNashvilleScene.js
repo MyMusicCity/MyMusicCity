@@ -80,16 +80,30 @@ async function scrapeNashvilleScene() {
       console.log('✅ MongoDB already connected');
     }
 
-    console.log('Launching Puppeteer...');
-    console.log('Starting enhanced browser launch sequence...');
+    console.log('🚀 Starting enhanced browser launch sequence...');
+    
+    let browserInfo = {
+      instance: null,
+      type: null,
+      navigationOptions: null
+    };
 
     try {
-      console.log('Attempting Playwright Chromium launch...');
+      console.log('🎯 Attempting Playwright Chromium launch...');
       browser = await chromium.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-zygote']
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
       });
+      
+      browserInfo = {
+        instance: browser,
+        type: 'playwright',
+        navigationOptions: getNavigationOptions('playwright')
+      };
+      
       console.log('✅ Playwright Chromium launched successfully!');
+      console.log(`🔧 Browser type: ${browserInfo.type}, waitUntil: ${browserInfo.navigationOptions.waitUntil}`);
+      
     } catch (err) {
       console.error('❌ Playwright failed:', err.message);
       console.log('🔄 Falling back to Puppeteer...');
@@ -152,7 +166,15 @@ async function scrapeNashvilleScene() {
                 '--disable-renderer-backgrounding'
               ]
             });
+            
+            browserInfo = {
+              instance: browser,
+              type: 'puppeteer',
+              navigationOptions: getNavigationOptions('puppeteer')
+            };
+            
             console.log(`✅ Puppeteer launched successfully with: ${executablePath}`);
+            console.log(`🔧 Browser type: ${browserInfo.type}, waitUntil: ${browserInfo.navigationOptions.waitUntil}`);
             break;
           } catch (pathErr) {
             console.log(`❌ Failed with ${executablePath}: ${pathErr.message}`);
@@ -191,7 +213,15 @@ async function scrapeNashvilleScene() {
               '--no-zygote'
             ]
           });
+          
+          browserInfo = {
+            instance: browser,
+            type: 'puppeteer',
+            navigationOptions: getNavigationOptions('puppeteer')
+          };
+          
           console.log('✅ Puppeteer launched with bundled Chromium!');
+          console.log(`🔧 Browser type: ${browserInfo.type}, waitUntil: ${browserInfo.navigationOptions.waitUntil}`);
         }
         
       } catch (puppeteerErr) {
@@ -200,17 +230,24 @@ async function scrapeNashvilleScene() {
       }
     }
 
-    const page = await browser.newPage();
+    const page = await browserInfo.instance.newPage();
     
-    // Set viewport based on browser type
-    if (typeof browser.newPage === 'function' && !browser.contexts) {
-      // Puppeteer browser
+    // Set viewport based on detected browser type
+    if (browserInfo.type === 'puppeteer') {
       await page.setViewport({ width: 1280, height: 720 });
       console.log('🔧 Using Puppeteer viewport API');
-    } else {
-      // Playwright browser
+    } else if (browserInfo.type === 'playwright') {
       await page.setViewportSize({ width: 1280, height: 720 });
       console.log('🔧 Using Playwright viewport API');
+    } else {
+      // Fallback for unknown browser type
+      try {
+        await page.setViewport({ width: 1280, height: 720 });
+        console.log('🔧 Using Puppeteer viewport API (fallback)');
+      } catch {
+        await page.setViewportSize({ width: 1280, height: 720 });
+        console.log('🔧 Using Playwright viewport API (fallback)');
+      }
     }
 
     // Scrape multiple DO615 pages for comprehensive music coverage
@@ -225,28 +262,14 @@ async function scrapeNashvilleScene() {
     
     for (const url of urlsToScrape) {
       try {
-        console.log(`🌐 Navigating to ${url} ...`);
+        console.log(`🌐 Starting navigation to ${url}...`);
+        console.log(`🔧 Using ${browserInfo.type} with waitUntil: ${browserInfo.navigationOptions.waitUntil}`);
         
-        // Enhanced navigation with retry logic
-        let navigationSuccess = false;
-        let retryCount = 0;
-        const maxRetries = 3;
+        // Use safe navigation with browser-specific options
+        const navigationSuccess = await safeNavigation(page, url, browserInfo.type);
         
-        while (!navigationSuccess && retryCount < maxRetries) {
-          try {
-            await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
-            navigationSuccess = true;
-            console.log(`✅ Successfully loaded ${url}`);
-          } catch (navErr) {
-            retryCount++;
-            console.log(`⚠️ Navigation attempt ${retryCount}/${maxRetries} failed for ${url}: ${navErr.message}`);
-            if (retryCount < maxRetries) {
-              console.log(`🔄 Retrying in 2 seconds...`);
-              await new Promise(resolve => setTimeout(resolve, 2000));
-            } else {
-              throw navErr;
-            }
-          }
+        if (!navigationSuccess) {
+          throw new Error('Navigation failed after all attempts');
         }
         
         console.log(`📊 Extracting event data from ${url}...`);
@@ -530,7 +553,10 @@ async function scrapeNashvilleScene() {
   } catch (err) {
     console.error("Scrape failed:", err.message);
   } finally {
-    if (browser) await browser.close();
+    if (browserInfo && browserInfo.instance) {
+      console.log(`🔄 Closing ${browserInfo.type} browser...`);
+      await browserInfo.instance.close();
+    }
     
     // SIMPLIFIED: Basic connection cleanup
     if (shouldCloseConnection) {
