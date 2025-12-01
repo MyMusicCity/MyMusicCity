@@ -108,40 +108,59 @@ export default function Home() {
 
     (async () => {
       try {
-        // Use the new /api/events/current endpoint for better filtering
+        // Try the current events endpoint first
+        console.log('🔍 Fetching current events...');
         const response = await fetch(`${API_BASE}/api/events/current`);
         const apiEvents = await response.json();
+        
+        console.log('📊 Current events response:', {
+          status: response.status,
+          eventCount: Array.isArray(apiEvents) ? apiEvents.length : 'not array',
+          sample: Array.isArray(apiEvents) ? apiEvents.slice(0, 2).map(e => ({ title: e.title, date: e.date, source: e.source })) : 'no sample'
+        });
         
         if (mounted && Array.isArray(apiEvents) && apiEvents.length > 0) {
           setEvents(apiEvents);
           setLoading(false);
           return;
         }
-      } catch (err) {
-        console.log('Primary API endpoint failed:', err.message);
-        // Fallback to old endpoint if new one fails
-        try {
-          const apiEvents = await getEvents();
-          if (mounted && Array.isArray(apiEvents) && apiEvents.length > 0) {
-            // Filter to recent events on client side as fallback
-            const twoWeeksAgo = new Date();
-            twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-            
-            const recentEvents = apiEvents.filter(event => {
-              const eventDate = new Date(event.date);
-              return eventDate >= twoWeeksAgo;
-            });
-            
-            setEvents(recentEvents);
-            setLoading(false);
-            return;
-          }
-        } catch (err2) {
-          console.log('Fallback API endpoint failed:', err2.message);
+        
+        // If no current events, try all events
+        console.log('⚠️ No current events, trying all events...');
+        const allResponse = await fetch(`${API_BASE}/api/events`);
+        const allEvents = await allResponse.json();
+        
+        console.log('📊 All events response:', {
+          status: allResponse.status,
+          eventCount: Array.isArray(allEvents) ? allEvents.length : 'not array'
+        });
+        
+        if (mounted && Array.isArray(allEvents) && allEvents.length > 0) {
+          // Filter to recent events on client side
+          const twoWeeksAgo = new Date();
+          twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+          
+          const recentEvents = allEvents.filter(event => {
+            const eventDate = new Date(event.date);
+            return eventDate >= twoWeeksAgo;
+          });
+          
+          console.log('📅 Filtered events:', {
+            total: allEvents.length,
+            recent: recentEvents.length,
+            cutoffDate: twoWeeksAgo.toISOString()
+          });
+          
+          setEvents(recentEvents.length > 0 ? recentEvents : allEvents.slice(0, 20));
+          setLoading(false);
+          return;
         }
+        
+      } catch (err) {
+        console.log('API endpoints failed:', err.message);
       }
 
-      // Final fallback to mock events if both endpoints fail
+      // Final fallback to mock events if all endpoints fail
       if (mounted) {
         console.log('Using mock events as final fallback');
         setTimeout(() => {
