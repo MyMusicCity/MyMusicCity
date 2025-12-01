@@ -6,13 +6,32 @@ import { AuthContext } from "../AuthContext";
 import { getCurrentUser, updateUserProfile, deleteAccount } from "../api";
 import "../styles.css";
 
-// Helper function for consistent avatar generation across the app
-const getAvatarText = (username, email) => {
-  if (!username && !email) return "?";
+// Helper function for Vanderbilt-themed avatar generation (First + Last initials)
+const getAvatarText = (username, email, fullName) => {
+  // Try to get initials from full name first
+  if (fullName && fullName.trim()) {
+    const names = fullName.trim().split(' ');
+    if (names.length >= 2) {
+      return (names[0][0] + names[names.length - 1][0]).toUpperCase();
+    }
+    return names[0][0].toUpperCase();
+  }
   
-  // Use first letter of username, or first letter of email if no username
-  const text = username || email;
-  return text[0].toUpperCase();
+  // Try to extract from username (if it looks like "firstname lastname" or "firstnamelastname")
+  if (username && username.trim()) {
+    const parts = username.trim().split(/[\s._-]+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return username[0].toUpperCase();
+  }
+  
+  // Fallback to email
+  if (email && email.trim()) {
+    return email[0].toUpperCase();
+  }
+  
+  return "?";
 };
 
 export default function Profile() {
@@ -25,6 +44,7 @@ export default function Profile() {
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editMode, setEditMode] = useState(false); // Add edit mode toggle
   
   const [editValues, setEditValues] = useState({
     username: "",
@@ -50,13 +70,18 @@ export default function Profile() {
         setError(null);
         const userData = await getCurrentUser();
         setProfile(userData);
-        // Keep form fields completely blank for user input
+        
+        // Set edit mode based on profile completeness
+        const isComplete = userData.username && userData.email && userData.year && userData.major;
+        setEditMode(!isComplete);
+        
+        // Initialize edit values with current profile data
         setEditValues({
-          username: "",
-          email: "",
-          year: "",
-          major: "",
-          phone: "", // Optional phone
+          username: userData.username || "",
+          email: userData.email || "",
+          year: userData.year || "",
+          major: userData.major || "",
+          phone: userData.phone || "",
         });
       } catch (err) {
         console.error("Failed to load profile:", err);
@@ -105,9 +130,9 @@ export default function Profile() {
       setError("");
       const updatedUser = await updateUserProfile(editValues);
       setProfile(updatedUser);
+      setEditMode(false); // Exit edit mode
       setError("");
-      // Refresh page on successful save
-      window.location.reload();
+      // Don't reload page, just update state
     } catch (err) {
       console.error("Failed to update profile:", err);
       if (err.message.includes("USERNAME_TAKEN")) {
@@ -286,8 +311,8 @@ export default function Profile() {
     );
   }
 
-  const avatarLetter = getAvatarText(profile?.username, profile?.email);
-  const profileIncomplete = !profile?.profileComplete;
+  const avatarLetter = getAvatarText(profile?.username, profile?.email, auth0User?.name);
+  const profileIncomplete = !profile?.username || !profile?.email || !profile?.year || !profile?.major;
 
   return (
     <div className="profile-page">
@@ -314,70 +339,94 @@ export default function Profile() {
           </div>
         )}
 
-        <div className="profile-form">
-          <div className="form-field">
-            <label><strong>Username:</strong></label>
-            <input
-              type="text"
-              value={editValues.username}
-              onChange={(e) => setEditValues({...editValues, username: e.target.value})}
-              placeholder="Enter username"
-              disabled={saving}
-            />
-          </div>
+        {editMode ? (
+          <div className="profile-form">
+            <div className="form-field">
+              <label><strong>Username:</strong></label>
+              <input
+                type="text"
+                value={editValues.username}
+                onChange={(e) => setEditValues({...editValues, username: e.target.value})}
+                placeholder="Enter username"
+                disabled={saving}
+              />
+            </div>
 
-          <div className="form-field">
-            <label><strong>Email:</strong></label>
-            <input
-              type="email"
-              value={editValues.email}
-              onChange={(e) => setEditValues({...editValues, email: e.target.value})}
-              placeholder="Enter email"
-              disabled={saving}
-            />
-          </div>
+            <div className="form-field">
+              <label><strong>Email:</strong></label>
+              <input
+                type="email"
+                value={editValues.email}
+                onChange={(e) => setEditValues({...editValues, email: e.target.value})}
+                placeholder="Enter email"
+                disabled={saving}
+              />
+            </div>
 
-          <div className="form-field">
-            <label><strong>Year:</strong></label>
-            <input
-              type="text"
-              value={editValues.year}
-              onChange={(e) => setEditValues({...editValues, year: e.target.value})}
-              placeholder="e.g., Sophomore, Graduate"
-              disabled={saving}
-            />
-          </div>
+            <div className="form-field">
+              <label><strong>Year:</strong></label>
+              <input
+                type="text"
+                value={editValues.year}
+                onChange={(e) => setEditValues({...editValues, year: e.target.value})}
+                placeholder="e.g., Sophomore, Graduate"
+                disabled={saving}
+              />
+            </div>
 
-          <div className="form-field">
-            <label><strong>Major:</strong></label>
-            <input
-              type="text"
-              value={editValues.major}
-              onChange={(e) => setEditValues({...editValues, major: e.target.value})}
-              placeholder="e.g., Computer Science, Music"
-              disabled={saving}
-            />
-          </div>
+            <div className="form-field">
+              <label><strong>Major:</strong></label>
+              <input
+                type="text"
+                value={editValues.major}
+                onChange={(e) => setEditValues({...editValues, major: e.target.value})}
+                placeholder="e.g., Computer Science, Music"
+                disabled={saving}
+              />
+            </div>
 
-          <div className="form-field">
-            <label><strong>Phone Number:</strong> <span className="optional-label">(optional)</span></label>
-            <input
-              type="tel"
-              value={editValues.phone}
-              onChange={(e) => setEditValues({...editValues, phone: e.target.value})}
-              placeholder="e.g., (615) 123-4567"
-              disabled={saving}
-            />
-          </div>
+            <div className="form-field">
+              <label><strong>Phone Number:</strong> <span className="optional-label">(optional)</span></label>
+              <input
+                type="tel"
+                value={editValues.phone}
+                onChange={(e) => setEditValues({...editValues, phone: e.target.value})}
+                placeholder="e.g., (615) 123-4567"
+                disabled={saving}
+              />
+            </div>
 
-          <button 
-            className="save-profile-btn"
-            onClick={handleSaveProfile}
-            disabled={saving || !canSave}
-          >
-            {saving ? "Saving..." : "Save Profile"}
-          </button>
-        </div>
+            <div className="profile-edit-actions">
+              <button 
+                className="save-profile-btn"
+                onClick={handleSaveProfile}
+                disabled={saving || !canSave}
+              >
+                {saving ? "Saving..." : "Save Profile"}
+              </button>
+              <button 
+                className="cancel-edit-btn"
+                onClick={handleCancelEdit}
+                disabled={saving}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="profile-display">
+            <div className="profile-details">
+              <p><strong>Username:</strong> {profile?.username || "Not set"}</p>
+              <p><strong>Email:</strong> {profile?.email || "Not set"}</p>
+              <p><strong>Year:</strong> {profile?.year || "Not set"}</p>
+              <p><strong>Major:</strong> {profile?.major || "Not set"}</p>
+              {profile?.phone && <p><strong>Phone:</strong> {profile.phone}</p>}
+            </div>
+            <button className="edit-profile-btn" onClick={handleEditProfile}>
+              <FaPen /> Edit Profile
+            </button>
+          </div>
+        )}
 
         {error && (
           <div className="error-message">

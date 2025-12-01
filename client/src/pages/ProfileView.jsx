@@ -3,11 +3,32 @@ import { useParams, useNavigate } from "react-router-dom";
 import { getUserById } from "../api";
 import "../styles.css";
 
-// Helper function for consistent avatar generation
-const getAvatarText = (username, email) => {
-  if (!username && !email) return "?";
-  const text = username || email;
-  return text[0].toUpperCase();
+// Helper function for Vanderbilt-themed avatar generation (First + Last initials)
+const getAvatarText = (username, email, fullName) => {
+  // Try to get initials from full name first
+  if (fullName && fullName.trim()) {
+    const names = fullName.trim().split(' ');
+    if (names.length >= 2) {
+      return (names[0][0] + names[names.length - 1][0]).toUpperCase();
+    }
+    return names[0][0].toUpperCase();
+  }
+  
+  // Try to extract from username (if it looks like "firstname lastname" or "firstnamelastname")
+  if (username && username.trim()) {
+    const parts = username.trim().split(/[\s._-]+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return username[0].toUpperCase();
+  }
+  
+  // Fallback to email
+  if (email && email.trim()) {
+    return email[0].toUpperCase();
+  }
+  
+  return "?";
 };
 
 export default function ProfileView() {
@@ -44,7 +65,7 @@ export default function ProfileView() {
   return (
     <div className="profile-page">
       <div className="profile-card">
-        <div className="profile-avatar">{getAvatarText(user.username, user.email)}</div>
+        <div className="profile-avatar">{getAvatarText(user.username, user.email, null)}</div>
         <h2 className="profile-name">{user.username}</h2>
         <p><strong>Email:</strong> {user.email}</p>
         <p>Member since: {new Date(user.createdAt).toLocaleDateString()}</p>

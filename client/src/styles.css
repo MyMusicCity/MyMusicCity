@@ -857,6 +857,65 @@ select {
   font-size: 0.85rem;
 }
 
+/* Profile display styles */
+.profile-display {
+  margin-top: 1.5rem;
+}
+
+.profile-details {
+  text-align: left;
+  margin-bottom: 1.5rem;
+}
+
+.profile-details p {
+  margin: 0.8rem 0;
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.edit-profile-btn {
+  background-color: #b1976b;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  margin: 0 auto;
+}
+
+.edit-profile-btn:hover {
+  background-color: #967c56;
+  transform: scale(1.03);
+}
+
+.profile-edit-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.cancel-edit-btn {
+  background-color: #ccc;
+  color: #333;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cancel-edit-btn:hover {
+  background-color: #bbb;
+  transform: scale(1.03);
+}
+
 .form-field input {
   width: 100%;
   padding: 0.7rem 0.8rem;

@@ -13,11 +13,32 @@ import {
 } from "../api";
 import { AuthContext } from "../AuthContext";
 
-// Helper function for consistent avatar generation across the app
-const getAvatarText = (username, email) => {
-  if (!username && !email) return "?";
-  const text = username || email;
-  return text[0].toUpperCase();
+// Helper function for Vanderbilt-themed avatar generation (First + Last initials)
+const getAvatarText = (username, email, fullName) => {
+  // Try to get initials from full name first
+  if (fullName && fullName.trim()) {
+    const names = fullName.trim().split(' ');
+    if (names.length >= 2) {
+      return (names[0][0] + names[names.length - 1][0]).toUpperCase();
+    }
+    return names[0][0].toUpperCase();
+  }
+  
+  // Try to extract from username (if it looks like "firstname lastname" or "firstnamelastname")
+  if (username && username.trim()) {
+    const parts = username.trim().split(/[\s._-]+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return username[0].toUpperCase();
+  }
+  
+  // Fallback to email
+  if (email && email.trim()) {
+    return email[0].toUpperCase();
+  }
+  
+  return "?";
 };
 
 export default function EventDetails() {
@@ -390,7 +411,7 @@ export default function EventDetails() {
                     className="attendee-link"
                   >
                     <div className="attendee-avatar">
-                      {getAvatarText(u.username, u.email)}
+                      {getAvatarText(u.username, u.email, null)}
                     </div>
                     <div className="attendee-name">{u.username || "Unknown"}</div>
                   </Link>
