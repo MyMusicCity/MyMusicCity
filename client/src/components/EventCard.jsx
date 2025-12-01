@@ -37,6 +37,10 @@ export default function EventCard({ event }) {
         )
       : 0);
 
+  // Calculate popularity and determine if event is "hot"
+  const popularityScore = attendeeCount + commentCount;
+  const isPopular = popularityScore >= 2; // Show badge for events with 2+ interactions
+
   return (
     <Link
       to={`/event/${event._id || event.id}`}
@@ -44,14 +48,35 @@ export default function EventCard({ event }) {
       className="event-card"
     >
       {/* IMAGE */}
-      <img
-        src={
-          event.image ||
-          `https://picsum.photos/400/240?random=${event._id || event.id}`
-        }
-        alt={event.title}
-        className="event-img"
-      />
+      <div style={{ position: 'relative' }}>
+        <img
+          src={
+            event.image ||
+            `https://picsum.photos/400/240?random=${event._id || event.id}`
+          }
+          alt={event.title}
+          className="event-img"
+        />
+        {/* POPULAR BADGE */}
+        {isPopular && (
+          <div style={{
+            position: 'absolute',
+            top: '8px',
+            right: '8px',
+            backgroundColor: '#ff6b6b',
+            color: 'white',
+            fontSize: '11px',
+            fontWeight: '600',
+            padding: '4px 8px',
+            borderRadius: '12px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+          }}>
+            🔥 Hot
+          </div>
+        )}
+      </div>
 
       <div className="event-info">
         <h4>{event.title}</h4>

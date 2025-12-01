@@ -230,6 +230,13 @@ export default function Home() {
     filteredEvents: filteredEvents.length,
     searchTerm,
     dateFilters: { startDate, endDate },
+    sortBy,
+    popularityData: events.slice(0, 3).map(e => ({
+      title: e.title?.substring(0, 30),
+      rsvpCount: e.rsvpCount || 0,
+      commentCount: e.commentCount || 0,
+      popularity: (e.rsvpCount || 0) + (e.commentCount || 0)
+    })),
     sampleEvents: events.slice(0, 3).map(e => ({
       title: e.title,
       date: e.date
