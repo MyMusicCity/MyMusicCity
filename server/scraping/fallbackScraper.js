@@ -4,9 +4,8 @@ const cheerio = require('cheerio');
 const mongoose = require('../mongoose');
 const Event = require('../models/Event');
 
-console.log('🚨 Emergency fallback scraper starting (no browser required)...');
-
 async function fallbackScrape() {
+  console.log('🚨 Emergency fallback scraper starting (no browser required)...');
   try {
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(process.env.MONGO_URI, { dbName: "mymusiccity" });
