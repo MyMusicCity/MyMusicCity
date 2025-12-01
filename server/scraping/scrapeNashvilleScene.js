@@ -435,9 +435,12 @@ async function scrapeNashvilleScene() {
 
     // Process each event
     const formattedEvents = [];
+    const baseDate = new Date(); // Use consistent base for fallback dates
 
     for (const [index, e] of events.entries()) {
       let parsedDate;
+      let dateParsingSuccess = false;
+      
       try {
         // Try to parse from datetime meta tag first
         if (e.datetime) {
@@ -448,7 +451,9 @@ async function scrapeNashvilleScene() {
           parsedDate = new Date(cleanDateTime);
           console.log(`Event "${e.title}": datetime="${e.datetime}" -> cleaned="${cleanDateTime}" -> parsed="${parsedDate.toDateString()}"`);
           
-          if (isNaN(parsedDate.getTime())) {
+          if (!isNaN(parsedDate.getTime())) {
+            dateParsingSuccess = true;
+          } else {
             throw new Error('Invalid datetime after cleaning');
           }
         } else if (e.dateText) {
@@ -459,17 +464,23 @@ async function scrapeNashvilleScene() {
             const monthNum = new Date(`${month} 1, 2000`).getMonth();
             parsedDate = new Date(2025, monthNum, parseInt(day));
             console.log(`Event "${e.title}": parsed from dateText="${e.dateText}" -> ${parsedDate.toDateString()}`);
+            dateParsingSuccess = true;
           } else {
-            console.log(`Event "${e.title}": Could not parse dateText="${e.dateText}", using today`);
-            parsedDate = new Date();
+            throw new Error(`Could not parse dateText="${e.dateText}"`);
           }
         } else {
-          console.log(`Event "${e.title}": No date info available, using today`);
-          parsedDate = new Date();
+          throw new Error('No date info available');
         }
       } catch (err) {
-        console.log(`Event "${e.title}": Date parsing error - ${err.message}, using today`);
-        parsedDate = new Date();
+        console.log(`Event "${e.title}": Date parsing error - ${err.message}`);
+        dateParsingSuccess = false;
+      }
+      
+      // Enhanced fallback date assignment to prevent duplicate timestamps
+      if (!dateParsingSuccess) {
+        // Create unique fallback dates by adding event index as offset
+        parsedDate = new Date(baseDate.getTime() + (index * 60000)); // Each event gets unique minute
+        console.log(`Event "${e.title}": Using fallback date with offset -> ${parsedDate.toDateString()} ${parsedDate.toTimeString()}`);
       }
 
       // Enhanced image processing
@@ -491,6 +502,39 @@ async function scrapeNashvilleScene() {
         imageResult = imageProcessor.getFallbackResult(eventData);
       }
 
+      // Map genre from detectGenre output to Event schema enum values
+      function mapGenreToSchema(detectedGenre) {
+        const genreMapping = {
+          'jazz': 'Jazz',
+          'hiphop': 'Hip-Hop',
+          'indie': 'Indie', 
+          'rock': 'Rock',
+          'country': 'Country',
+          'electronic': 'Electronic',
+          'folk': 'Folk',
+          'blues': 'Blues',
+          'pop': 'Pop',
+          'classical': 'Classical',
+          'rap': 'Hip-Hop', // Map rap to Hip-Hop
+          'general': 'Other'
+        };
+        return genreMapping[detectedGenre] || 'Other';
+      }
+      
+      // Map musicType to schema enum values
+      function mapMusicTypeToSchema(musicType) {
+        const musicTypeMapping = {
+          'concert': 'concert',
+          'festival': 'festival', 
+          'open-mic': 'open-mic',
+          'dj-set': 'dj-set',
+          'acoustic': 'acoustic',
+          'jam-session': 'jam-session',
+          'other': 'other'
+        };
+        return musicTypeMapping[musicType] || 'other';
+      }
+
       const formattedEvent = {
         title: e.title,
         normalizedTitle: normalizeTitle(e.title),
@@ -503,9 +547,9 @@ async function scrapeNashvilleScene() {
         url: e.url || `https://do615.com/events/generated/${crypto.createHash('sha256').update(`${e.title}-${e.location}-${parsedDate.toISOString()}`).digest('hex').substring(0,16)}`,
         createdBy: null,
         source: "do615",
-        // Use valid enum values
-        genre: "Other", // Use valid enum value
-        musicType: "concert" // Use valid enum value
+        // Use properly mapped enum values
+        genre: "Other", // Will be updated by classification below
+        musicType: "other" // Will be updated by classification below
       };
 
       formattedEvents.push(formattedEvent);
@@ -527,8 +571,8 @@ async function scrapeNashvilleScene() {
       if (isMusicEvent(event.title, event.description, event.location)) {
         // Enhance classification
         const classification = classifyEvent(event);
-        event.genre = classification.genre || event.genre;
-        event.musicType = classification.musicType || event.musicType;
+        event.genre = mapGenreToSchema(classification.genre || 'general');
+        event.musicType = mapMusicTypeToSchema(classification.musicType || 'other');
         event.venue = classification.venue || event.venue;
         
         musicEvents.push(event);
@@ -548,29 +592,39 @@ async function scrapeNashvilleScene() {
     const eventsToInsert = musicEvents;
     console.log(`\n💾 Proceeding with ${eventsToInsert.length} music-only events`);
 
-    // Basic duplicate checking by title only
-    const titles = eventsToInsert.map((e) => e.title);
+    // Enhanced duplicate checking matching the unique constraint (title + date + location)
+    console.log(`🔍 Checking for duplicates using unique constraint (title + date + location)...`);
     
-    console.log(`🔍 Checking for duplicate titles among ${titles.length} music events...`);
+    // Create query conditions matching the unique index
+    const duplicateQueries = eventsToInsert.map(event => ({
+      title: event.title,
+      date: event.date,
+      location: event.location || { $exists: false } // Handle null/undefined locations
+    }));
     
     const existing = await Event.find({ 
-      title: { $in: titles }
-    }).select("title source createdAt");
+      $or: duplicateQueries
+    }).select("title date location source createdAt");
     
     console.log(`🔍 Found ${existing.length} existing events in database:`);
     existing.forEach(e => {
-      console.log(`   - "${e.title}" (${e.source}) - ${new Date(e.createdAt).toISOString()}`);
+      console.log(`   - "${e.title}" at "${e.location || 'No location'}" on ${e.date.toDateString()} (${e.source})`);
     });
     
-    const existingTitles = new Set(existing.map((e) => e.title));
+    // Create a set of existing event signatures for fast lookup
+    const existingSignatures = new Set(existing.map(e => 
+      `${e.title}|${e.date.getTime()}|${e.location || ''}`
+    ));
 
     const newEvents = eventsToInsert.filter((e) => {
-      if (existingTitles.has(e.title)) {
-        console.log(`   🚫 SKIPPING DUPLICATE: "${e.title}"`);
+      const signature = `${e.title}|${e.date.getTime()}|${e.location || ''}`;
+      
+      if (existingSignatures.has(signature)) {
+        console.log(`   🚫 SKIPPING DUPLICATE: "${e.title}" (${e.location || 'No location'}) on ${e.date.toDateString()}`);
         return false;
       }
       
-      console.log(`   ✅ NEW EVENT: "${e.title}"`);
+      console.log(`   ✅ NEW EVENT: "${e.title}" (${e.location || 'No location'}) on ${e.date.toDateString()}`);
       return true;
     });
 
@@ -579,15 +633,43 @@ async function scrapeNashvilleScene() {
     if (newEvents.length === 0) {
       console.log("No new events to add (all already exist)");
     } else {
-      try {
-        console.log(`💾 Inserting ${newEvents.length} events into database...`);
-        
-        // Simplified insertion - remove complex writeConcern
-        const insertResult = await Event.insertMany(newEvents, { 
-          ordered: false // Continue on individual errors
+      // Pre-insertion validation to catch potential issues early
+      console.log(`🔍 Pre-validating ${newEvents.length} events before insertion...`);
+      const validEvents = [];
+      const invalidEvents = [];
+      
+      for (const event of newEvents) {
+        try {
+          // Create a test document to validate schema
+          const testEvent = new Event(event);
+          await testEvent.validate();
+          validEvents.push(event);
+          console.log(`   ✅ VALID: "${event.title}" - ${event.date.toDateString()}`);
+        } catch (validationErr) {
+          invalidEvents.push({ event, error: validationErr.message });
+          console.log(`   ❌ INVALID: "${event.title}" - ${validationErr.message}`);
+        }
+      }
+      
+      if (invalidEvents.length > 0) {
+        console.log(`⚠️ ${invalidEvents.length} events failed validation and will be skipped`);
+        invalidEvents.forEach(({ event, error }) => {
+          console.log(`     - "${event.title}": ${error}`);
         });
-        
-        console.log(`📝 Insert operation completed for ${insertResult.length} events`);
+      }
+      
+      if (validEvents.length === 0) {
+        console.log("❌ No valid events to insert after validation");
+      } else {
+        try {
+          console.log(`💾 Inserting ${validEvents.length} validated events into database...`);
+          
+          // Use validated events only
+          const insertResult = await Event.insertMany(validEvents, { 
+            ordered: false // Continue on individual errors
+          });
+          
+          console.log(`📝 Insert operation completed for ${insertResult.length} events`);
         
         // Simple verification
         const verifyCount = await Event.countDocuments({ source: 'do615' });
@@ -612,39 +694,69 @@ async function scrapeNashvilleScene() {
           code: dbErr.code
         });
         
-        // Try to insert events individually on bulk failure
-        if (dbErr.name === 'BulkWriteError' && newEvents.length > 1) {
-          console.log("🔄 Attempting individual event insertion as fallback...");
-          let successCount = 0;
+        // Enhanced bulk write error analysis
+        if (dbErr.name === 'BulkWriteError') {
+          console.log("🔍 Analyzing BulkWriteError details...");
           
-          for (const event of newEvents) {
-            try {
-              await Event.create(event);
-              successCount++;
-              console.log(`   ✅ Individual insert success: "${event.title}"`);
-            } catch (individualErr) {
-              console.log(`   ❌ Individual insert failed: "${event.title}" - ${individualErr.message}`);
-            }
+          if (dbErr.writeErrors && dbErr.writeErrors.length > 0) {
+            console.log(`📊 ${dbErr.writeErrors.length} specific write errors:`);
+            dbErr.writeErrors.forEach((writeErr, idx) => {
+              console.log(`   ${idx + 1}. Index ${writeErr.index}: ${writeErr.errmsg}`);
+              if (writeErr.op) {
+                console.log(`      Event: "${writeErr.op.title}" at "${writeErr.op.location || 'No location'}" on ${new Date(writeErr.op.date).toDateString()}`);
+              }
+            });
           }
           
-          console.log(`📊 Individual insertion results: ${successCount}/${newEvents.length} successful`);
+          if (dbErr.result && dbErr.result.nInserted > 0) {
+            console.log(`✅ Partial success: ${dbErr.result.nInserted} events were successfully inserted`);
+          }
+          
+          // Try individual insertion for failed events only if we have detailed error info
+          if (validEvents.length > 1 && dbErr.result.nInserted < validEvents.length) {
+            console.log("🔄 Attempting individual event insertion for failed items...");
+            let successCount = dbErr.result.nInserted || 0;
+            
+            const failedIndexes = new Set(dbErr.writeErrors?.map(e => e.index) || []);
+            
+            for (const [index, event] of validEvents.entries()) {
+              if (failedIndexes.has(index)) {
+                try {
+                  await Event.create(event);
+                  successCount++;
+                  console.log(`   ✅ Individual insert success: "${event.title}"`);
+                } catch (individualErr) {
+                  console.log(`   ❌ Individual insert failed: "${event.title}" - ${individualErr.message}`);
+                  if (individualErr.code === 11000) {
+                    console.log(`      Duplicate key violation: ${individualErr.keyValue ? JSON.stringify(individualErr.keyValue) : 'Unknown key'}`);
+                  }
+                }
+              }
+            }
+            
+            console.log(`📊 Final insertion results: ${successCount}/${validEvents.length} successful`);
+          }
         } else {
           console.error("💥 Complete database operation failure");
         }
         
-        // More detailed error analysis
+        // Enhanced error analysis
         if (dbErr.code === 11000) {
-          console.warn("⚠️ Duplicate key errors detected");
-          console.log("Insertion details:", dbErr.writeErrors?.map(e => e.errmsg) || 'No specific error details');
+          console.warn("⚠️ Duplicate key constraint violations detected");
+          console.log("Key pattern:", dbErr.keyPattern || 'Unknown');
+          console.log("Key value:", dbErr.keyValue || 'Unknown');
         } else if (dbErr.name === 'ValidationError') {
-          console.error("❌ Validation errors:", Object.keys(dbErr.errors || {}).map(key => `${key}: ${dbErr.errors[key].message}`));
+          console.error("❌ Schema validation errors:", Object.keys(dbErr.errors || {}).map(key => `${key}: ${dbErr.errors[key].message}`));
         } else {
           console.error("❌ Unexpected database error:", dbErr.message);
+          console.error("Error code:", dbErr.code);
+          console.error("Error name:", dbErr.name);
         }
         
         // Don't throw - let the process complete
       }
     }
+  }
   } catch (err) {
     console.error("Scrape failed:", err.message);
   } finally {
