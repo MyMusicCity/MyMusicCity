@@ -27,12 +27,24 @@ async function scrapeSceneCalendar() {
   let browser = null;
   let shouldCloseConnection = false;
   try {
-    // Only connect if not already connected
-    if (mongoose.connection.readyState !== 1) {
+    // Check if we already have an active MongoDB connection
+    const connectionStates = {
+      0: 'disconnected',
+      1: 'connected', 
+      2: 'connecting',
+      3: 'disconnecting'
+    };
+    
+    console.log(`MongoDB connection state: ${mongoose.connection.readyState} (${connectionStates[mongoose.connection.readyState]})`);
+    
+    // Only connect if we're completely disconnected
+    if (mongoose.connection.readyState === 0) {
+      console.log("Connecting to MongoDB...");
       await mongoose.connect(process.env.MONGO_URI, { dbName: "mymusiccity" });
       shouldCloseConnection = true; // Only close if we opened it
     } else {
       console.log("Using existing MongoDB connection...");
+      shouldCloseConnection = false; // Don't close shared connection
     }
 
     const url = "https://calendar.nashvillescene.com";
