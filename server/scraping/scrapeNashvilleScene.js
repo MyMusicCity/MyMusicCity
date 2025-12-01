@@ -276,18 +276,39 @@ async function scrapeDo615() {
     // Avoid duplicates (check by title OR url)
     const titles = musicEvents.map((e) => e.title);
     const urls = musicEvents.map((e) => e.url).filter(Boolean);
+    
+    console.log(`🔍 Checking for duplicates among ${titles.length} titles and ${urls.length} URLs...`);
+    
     const queryOr = [];
     if (titles.length) queryOr.push({ title: { $in: titles } });
     if (urls.length) queryOr.push({ url: { $in: urls } });
-    const existing = queryOr.length ? await Event.find({ $or: queryOr }).select("title url") : [];
+    
+    console.log('🔍 Duplicate check query:', JSON.stringify(queryOr, null, 2));
+    
+    const existing = queryOr.length ? await Event.find({ $or: queryOr }).select("title url source createdAt") : [];
+    
+    console.log(`🔍 Found ${existing.length} existing events in database:`);
+    existing.forEach(e => {
+      console.log(`   - "${e.title}" (${e.source}) - ${new Date(e.createdAt).toISOString()}`);
+    });
+    
     const existingTitles = new Set(existing.map((e) => e.title));
     const existingUrls = new Set(existing.map((e) => e.url).filter(Boolean));
 
     const newEvents = musicEvents.filter((e) => {
-      if (existingUrls.has(e.url)) return false;
-      if (existingTitles.has(e.title)) return false;
+      const urlExists = existingUrls.has(e.url);
+      const titleExists = existingTitles.has(e.title);
+      
+      if (urlExists || titleExists) {
+        console.log(`   🚫 SKIPPING DUPLICATE: "${e.title}" (URL exists: ${urlExists}, Title exists: ${titleExists})`);
+        return false;
+      }
+      
+      console.log(`   ✅ NEW EVENT: "${e.title}"`);
       return true;
     });
+
+    console.log(`🎯 After duplicate filtering: ${newEvents.length} new events to insert`);
 
     if (newEvents.length === 0) {
       console.log("No new events to add (all already exist)");
