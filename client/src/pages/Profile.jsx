@@ -152,6 +152,24 @@ export default function Profile() {
     navigate("/");
   };
 
+  const handleEditProfile = () => {
+    setEditMode(true);
+    setError("");
+  };
+
+  const handleCancelEdit = () => {
+    // Reset edit values to current profile data
+    setEditValues({
+      username: profile?.username || "",
+      email: profile?.email || "",
+      year: profile?.year || "",
+      major: profile?.major || "",
+      phone: profile?.phone || "",
+    });
+    setEditMode(false);
+    setError("");
+  };
+
   const handleCleanupLegacy = async () => {
     if (!window.confirm("This will clean up any old account data that may be causing conflicts. Continue?")) {
       return;
@@ -230,9 +248,21 @@ export default function Profile() {
         }
       }
 
-      const result = await emergencyCleanup(email);
+      const result = await fetch(`${process.env.REACT_APP_API_URL || window.location.origin}/api/emergency-cleanup`, {
+        method: 'POST',
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify({ email }),
+      });
+
+      if (!result.ok) {
+        const errorData = await result.json().catch(() => ({ error: 'Failed to cleanup' }));
+        throw new Error(errorData.error || 'Emergency cleanup failed');
+      }
+
+      const cleanupResult = await result.json();
       
-      alert(`Emergency cleanup successful! Removed ${result.deletedAccounts} accounts. Please sign out and sign back in to create a fresh account.`);
+      alert(`Emergency cleanup successful! Removed ${cleanupResult.deletedAccounts} accounts. Please sign out and sign back in to create a fresh account.`);
       logout();
       navigate("/");
     } catch (err) {
