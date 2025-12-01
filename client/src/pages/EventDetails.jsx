@@ -172,14 +172,24 @@ export default function EventDetails() {
     (async () => {
       try {
         const list = await getEventRsvps(evId);
-        if (mounted) setAttendees(list || []);
+        if (mounted) {
+          console.log('🔍 DEBUG - Loaded attendees:', {
+            eventId: evId,
+            attendees: list?.map(r => ({
+              userId: r.user?._id || r.user?.id,
+              username: r.user?.username
+            })),
+            currentUserId: user?.id || user?._id
+          });
+          setAttendees(list || []);
+        }
       } catch (err) {
         console.error("Failed to load attendees", err);
       }
     })();
 
     return () => (mounted = false);
-  }, [event && (event._id || event.id), id]);
+  }, [event && (event._id || event.id), id, user]); // Add user dependency
 
   /* ===========================
         RECURSIVE COMMENT COUNT
@@ -331,12 +341,46 @@ export default function EventDetails() {
         ======================== */}
         <div style={{ marginTop: "1rem" }}>
           {(() => {
-            // Decide whether current user is attending
+            // Decide whether current user is attending - handle Auth0 IDs
             const currentUserId = user?.id || user?._id;
+            const currentAuth0Id = user?.auth0Id;
+            
+            console.log('🔍 DEBUG - RSVP Check:', {
+              currentUserId,
+              currentAuth0Id,
+              userObject: user,
+              attendeesCount: attendees.length,
+              attendeeUserIds: attendees.map(r => ({
+                id: r.user?._id || r.user?.id,
+                auth0Id: r.user?.auth0Id
+              }))
+            });
+            
             const isAttending = attendees.some((r) => {
               const uid = r.user?._id || r.user?.id;
-              return uid && currentUserId && String(uid) === String(currentUserId);
+              const auth0Id = r.user?.auth0Id;
+              
+              // Try multiple matching strategies
+              const idMatch = uid && currentUserId && String(uid) === String(currentUserId);
+              const auth0Match = auth0Id && currentAuth0Id && String(auth0Id) === String(currentAuth0Id);
+              const crossMatch = (uid && currentAuth0Id && String(uid) === String(currentAuth0Id)) ||
+                                (auth0Id && currentUserId && String(auth0Id) === String(currentUserId));
+              
+              const match = idMatch || auth0Match || crossMatch;
+              console.log('🔍 Checking attendee:', {
+                attendeeUserId: uid,
+                attendeeAuth0Id: auth0Id,
+                currentUserId,
+                currentAuth0Id,
+                idMatch,
+                auth0Match,
+                crossMatch,
+                finalMatch: match
+              });
+              return match;
             });
+
+            console.log('🔍 Final isAttending result:', isAttending);
 
             const evId = event._id || event.id || id;
 
