@@ -423,28 +423,15 @@ app.get("/api/users", async (_req, res) => {
   }
 });
 
-// ⭐ GET CURRENT EVENTS (LAST 2 WEEKS) WITH ENHANCED FILTERING
+// ⭐ GET CURRENT EVENTS - ALL REAL EVENTS (NO DATE FILTERING)
 app.get("/api/events/current", async (req, res) => {
   try {
-    // Show events from 2 weeks ago to 3 months forward (more permissive than original)
-    const now = new Date();
-    const startDate = new Date(now);
-    startDate.setDate(now.getDate() - 14); // 2 weeks ago
+    console.log('🔍 FETCHING ALL EVENTS (no date filtering)');
     
-    const endDate = new Date(now);
-    endDate.setMonth(now.getMonth() + 3); // 3 months forward
+    // Simple query - get ALL events, prioritize DO615 events
+    let query = {}; // No filtering - show all events
     
-    console.log('🔍 FETCHING EVENTS: Date range', startDate.toISOString().split('T')[0], 'to', endDate.toISOString().split('T')[0]);
-    
-    let query = {
-      $or: [
-        { date: { $gte: startDate, $lte: endDate } },
-        { date: null }, // Include events without dates
-        { date: { $exists: false } } // Include events where date field doesn't exist
-      ]
-    };
-    
-    console.log('🔍 Query being executed:', JSON.stringify(query, null, 2));
+    console.log('🔍 Query: Show ALL events');
     
     let events = await Event.find(query)
       .populate("createdBy", "username email")
@@ -452,21 +439,19 @@ app.get("/api/events/current", async (req, res) => {
       .exec()
       .catch(() => []); // Graceful fallback
     
-    console.log('📊 Events found in database:', events.length);
+    console.log('📊 All events found in database:', events.length);
+    
+    // Filter to only show DO615 events (real scraped events)
+    events = events.filter(e => e.source === 'do615');
+    console.log('📊 DO615 events after filtering:', events.length);
+    
     if (events.length > 0) {
-      console.log('📋 Sample events from database:');
+      console.log('📋 Sample DO615 events:');
       events.slice(0, 5).forEach(e => {
         console.log(`  - ${e.title} (${e.source}, Date: ${e.date ? new Date(e.date).toISOString().split('T')[0] : 'NO DATE'})`);
       });
-      
-      // Show source breakdown
-      const sources = {};
-      events.forEach(e => {
-        sources[e.source] = (sources[e.source] || 0) + 1;
-      });
-      console.log('📊 Source breakdown:', sources);
     } else {
-      console.log('❌ NO EVENTS FOUND IN DATABASE AT ALL!');
+      console.log('❌ NO DO615 EVENTS FOUND!');
     }
 
     // Get RSVP counts with error handling
@@ -489,7 +474,7 @@ app.get("/api/events/current", async (req, res) => {
       return m;
     }, {});
 
-    // Enhanced sorting: prioritize scraped events, then by date
+    // Enhanced sorting: Sort by date (soonest first)
     events = events
       .map((ev) => ({
         ...ev,
@@ -498,27 +483,14 @@ app.get("/api/events/current", async (req, res) => {
         commentCount: commentMap[String(ev._id)] || 0
       }))
       .sort((a, b) => {
-        // First, prioritize scraped events (do615, nashvillescene, etc.)
-        const aIsScraped = ['do615', 'nashvillescene', 'visitmusiccity'].includes(a.source);
-        const bIsScraped = ['do615', 'nashvillescene', 'visitmusiccity'].includes(b.source);
-        if (aIsScraped && !bIsScraped) return -1;
-        if (!aIsScraped && bIsScraped) return 1;
-        
-        // Then prioritize events with scraped images
-        const aHasScraped = a.imageSource === 'scraped';
-        const bHasScraped = b.imageSource === 'scraped';
-        if (aHasScraped && !bHasScraped) return -1;
-        if (!aHasScraped && bHasScraped) return 1;
-        
-        // Finally sort by date (ascending - soonest first)
-        const dateA = new Date(a.date || 0);
-        const dateB = new Date(b.date || 0);
+        // Sort by date (ascending - soonest first), put null dates at end
+        const dateA = new Date(a.date || '9999-12-31');
+        const dateB = new Date(b.date || '9999-12-31');
         return dateA - dateB;
-      })
-      .slice(0, 50); // Limit to 50 events for performance
+      }); // No slice limit - show ALL DO615 events
 
-    console.log('📊 Events after sorting, before final response:', events.length);
-    console.log('🎯 Final events being returned:', events.slice(0, 3).map(e => `${e.title} (${e.source})`));
+    console.log('📊 Final DO615 events being returned:', events.length);
+    console.log('🎯 Sample events:', events.slice(0, 3).map(e => `${e.title} (${e.source})`));
 
     res.json(events);
 
