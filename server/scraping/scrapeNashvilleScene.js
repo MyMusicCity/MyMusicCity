@@ -132,9 +132,15 @@ async function scrapeNashvilleScene() {
       try {
         // Try to parse from datetime meta tag first
         if (e.datetime) {
-          parsedDate = new Date(e.datetime);
+          // Clean up URL encoding issues in datetime string
+          let cleanDateTime = e.datetime.replace(/%CDT/g, '-05:00').replace(/%CST/g, '-06:00');
+          
+          // Try parsing the cleaned datetime
+          parsedDate = new Date(cleanDateTime);
+          console.log(`Event "${e.title}": datetime="${e.datetime}" -> cleaned="${cleanDateTime}" -> parsed="${parsedDate.toDateString()}"`);
+          
           if (isNaN(parsedDate.getTime())) {
-            throw new Error('Invalid datetime');
+            throw new Error('Invalid datetime after cleaning');
           }
         } else if (e.dateText) {
           // Fallback to parsing from displayed time text
@@ -143,13 +149,17 @@ async function scrapeNashvilleScene() {
             const [, month, day] = dateMatch;
             const monthNum = new Date(`${month} 1, 2000`).getMonth();
             parsedDate = new Date(2025, monthNum, parseInt(day));
+            console.log(`Event "${e.title}": parsed from dateText="${e.dateText}" -> ${parsedDate.toDateString()}`);
           } else {
+            console.log(`Event "${e.title}": Could not parse dateText="${e.dateText}", using today`);
             parsedDate = new Date();
           }
         } else {
+          console.log(`Event "${e.title}": No date info available, using today`);
           parsedDate = new Date();
         }
-      } catch {
+      } catch (err) {
+        console.log(`Event "${e.title}": Date parsing error - ${err.message}, using today`);
         parsedDate = new Date();
       }
 
