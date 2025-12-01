@@ -15,7 +15,7 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 // Production environment detection
 const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
 const SCRAPING_CONFIG = {
-  timeout: isProduction ? 120000 : 60000, // 2min for production, 1min for dev
+  timeout: isProduction ? 180000 : 120000, // 3min for production, 2min for dev
   waitUntil: isProduction ? 'load' : 'networkidle', // Faster load event for production
   maxRetries: isProduction ? 3 : 1,
   retryDelay: 5000 // 5 second delay between retries

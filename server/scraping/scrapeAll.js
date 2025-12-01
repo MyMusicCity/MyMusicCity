@@ -17,11 +17,13 @@ const SCRAPING_CONFIG = {
 console.log(`🔧 Production mode: ${isProduction}, timeout: ${SCRAPING_CONFIG.timeout}ms`);
 
 async function run() {
-  console.log("🚀 Starting optimized scraping run: DO615 (primary music events source)");
-  console.log("📋 Disabled scrapers: Scene Calendar (broken), Visit Music City (blocked)");
+  console.log("\ud83d\ude80 Starting optimized scraping run: DO615 (primary music events source)");
+  console.log("\ud83d\udccb Disabled scrapers: Scene Calendar (broken), Visit Music City (blocked)");
   
   let successfulScrapers = 0;
   let totalErrors = 0;
+
+  try {
 
   // DISABLED - Nashville Scene Calendar (site broken, redirects to ads)
   // Note: Site now redirects to ad trackers instead of serving event content
@@ -107,9 +109,8 @@ async function run() {
       }
     }
   }
-    });
 
-    console.log(`📊 Scraping Summary: ${successfulScrapers} successful, ${totalErrors} failed`);
+  console.log(`📊 Scraping Summary: ${successfulScrapers} successful, ${totalErrors} failed`);
     
     // Enhanced fallback system for presentation reliability
     if (successfulScrapers === 0) {
@@ -132,9 +133,12 @@ async function run() {
     process.exit(exitCode === 0 && totalErrors === 0 ? 0 : 1);
     
   } catch (error) {
-    console.error("❌ Critical error during scraping:", error);
+    console.error("\u274c Critical error during scraping:", error);
     process.exit(1);
   }
+  
+  // Exit with appropriate code
+  process.exit(successfulScrapers > 0 ? 0 : 1);
 }
 
 run();
