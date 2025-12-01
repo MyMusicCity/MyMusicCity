@@ -26,8 +26,15 @@ async function scrapeVisitMusicCity() {
   }
 
   let browser = null;
+  let shouldCloseConnection = false;
   try {
-    await mongoose.connect(process.env.MONGO_URI, { dbName: "mymusiccity" });
+    // Only connect if not already connected
+    if (mongoose.connection.readyState !== 1) {
+      await mongoose.connect(process.env.MONGO_URI, { dbName: "mymusiccity" });
+      shouldCloseConnection = true; // Only close if we opened it
+    } else {
+      console.log("Using existing MongoDB connection...");
+    }
 
     const url = "https://www.visitmusiccity.com/nashville-events";
     console.log(`Scraping Visit Music City events: ${url}`);
@@ -298,8 +305,13 @@ async function scrapeVisitMusicCity() {
     console.error("scrapeVisitMusicCity failed:", err && err.message ? err.message : err);
   } finally {
     if (browser) await browser.close();
-    await mongoose.connection.close();
-    console.log("scrapeVisitMusicCity finished and DB closed.");
+    // Only close connection if we opened it (running standalone)
+    if (shouldCloseConnection) {
+      await mongoose.connection.close();
+      console.log("scrapeVisitMusicCity finished and DB closed.");
+    } else {
+      console.log("scrapeVisitMusicCity finished, keeping shared DB connection open.");
+    }
   }
 }
 

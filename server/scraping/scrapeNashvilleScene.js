@@ -18,9 +18,16 @@ if (!process.env.MONGO_URI) {
 
 async function scrapeDo615() {
   let browser;
+  let shouldCloseConnection = false;
   try {
-    console.log("Connecting to MongoDB...");
-    await mongoose.connect(process.env.MONGO_URI, { dbName: "mymusiccity" });
+    // Only connect if not already connected
+    if (mongoose.connection.readyState !== 1) {
+      console.log("Connecting to MongoDB...");
+      await mongoose.connect(process.env.MONGO_URI, { dbName: "mymusiccity" });
+      shouldCloseConnection = true; // Only close if we opened it
+    } else {
+      console.log("Using existing MongoDB connection...");
+    }
 
     console.log("Launching Puppeteer...");
     browser = await launchBrowser();
@@ -205,8 +212,13 @@ async function scrapeDo615() {
     console.error("Scrape failed:", err.message);
   } finally {
     if (browser) await browser.close();
-    await mongoose.connection.close();
-    console.log("MongoDB connection closed.");
+    // Only close connection if we opened it (running standalone)
+    if (shouldCloseConnection) {
+      await mongoose.connection.close();
+      console.log("MongoDB connection closed.");
+    } else {
+      console.log("Keeping shared MongoDB connection open.");
+    }
   }
 }
 

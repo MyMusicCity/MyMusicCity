@@ -25,8 +25,15 @@ async function scrapeSceneCalendar() {
   }
 
   let browser = null;
+  let shouldCloseConnection = false;
   try {
-    await mongoose.connect(process.env.MONGO_URI, { dbName: "mymusiccity" });
+    // Only connect if not already connected
+    if (mongoose.connection.readyState !== 1) {
+      await mongoose.connect(process.env.MONGO_URI, { dbName: "mymusiccity" });
+      shouldCloseConnection = true; // Only close if we opened it
+    } else {
+      console.log("Using existing MongoDB connection...");
+    }
 
     const url = "https://calendar.nashvillescene.com";
     console.log(`Scraping Nashville Scene calendar: ${url}`);
@@ -375,8 +382,13 @@ async function scrapeSceneCalendar() {
     console.error("scrapeSceneCalendar failed:", err && err.message ? err.message : err);
   } finally {
     if (browser) await browser.close();
-    await mongoose.connection.close();
-    console.log("scrapeSceneCalendar finished and DB closed.");
+    // Only close connection if we opened it (running standalone)
+    if (shouldCloseConnection) {
+      await mongoose.connection.close();
+      console.log("scrapeSceneCalendar finished and DB closed.");
+    } else {
+      console.log("scrapeSceneCalendar finished, keeping shared DB connection open.");
+    }
   }
 }
 
