@@ -51,14 +51,19 @@ module.exports = async function handler(req, res) {
     
     console.log('🔍 FETCHING EVENTS: Date range', startDate.toISOString().split('T')[0], 'to', endDate.toISOString().split('T')[0]);
     
+    // TEMPORARY: Expand date range to catch all events for debugging
+    const debugStartDate = new Date('2020-01-01'); // Very old date
+    const debugEndDate = new Date('2030-12-31');   // Very future date
+    
     let query = {
       $or: [
-        { date: { $gte: startDate, $lte: endDate } },
+        { date: { $gte: debugStartDate, $lte: debugEndDate } }, // Expanded range
         { date: null }, // Include events without dates
         { date: { $exists: false } } // Include events where date field doesn't exist
       ]
     };
     
+    console.log('🔍 DEBUG: Using expanded date range for troubleshooting');
     console.log('🔍 Query being executed:', JSON.stringify(query, null, 2));
     
     let events = await Event.find(query)

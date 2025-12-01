@@ -67,7 +67,8 @@ module.exports = async function handler(req, res) {
         createdAt: e.createdAt
       })),
       sourceBreakdown: sourceBreakdown,
-      debug: "Database connection working - Vercel serverless function"
+      debug: "Database connection working - Vercel serverless function",
+      lastUpdated: new Date().toISOString()
     });
   } catch (err) {
     console.error("Debug endpoint error:", err);
