@@ -34,9 +34,18 @@ export default function Navbar() {
       <div className="nav-icons">
         {isAuthenticated ? (
           <>
-            <Link to="/rsvps" className="nav-link-with-text">
-              <FaHeart className="nav-icon" title="My RSVPs" />
-              <span>My RSVPs</span>
+            <Link to="/rsvps" style={{
+              display: 'flex',
+              alignItems: 'center', 
+              gap: '6px',
+              textDecoration: 'none',
+              color: '#333',
+              backgroundColor: 'white',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              border: '2px solid #e91e63'
+            }}>
+              ❤️ My RSVPs
             </Link>
             
             {/* User profile dropdown */}
