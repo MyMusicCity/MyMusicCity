@@ -4,6 +4,7 @@ const cheerio = require("cheerio");
 const puppeteer = require("puppeteer");
 const mongoose = require("../mongoose");
 const Event = require("../models/Event");
+const { imageProcessor } = require("../utils/imageProcessor");
 const { classifyEvent } = require("../utils/musicClassifier");
 const { launchBrowser } = require("../utils/puppeteerConfig");
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
@@ -47,6 +48,39 @@ async function scrapeSceneCalendar() {
         let text = ($el.text() || "").trim();
         // Collapse whitespace
         text = text.replace(/\s+/g, " ").trim();
+        
+        // Enhanced image extraction
+        const images = [];
+        
+        // Direct image sources
+        $el.find("img").each((idx, img) => {
+          const src = $(img).attr("src") || $(img).attr("data-src");
+          if (src && !src.includes('placeholder') && !src.includes('loading')) {
+            images.push(src.startsWith('//') ? 'https:' + src : src);
+          }
+        });
+        
+        // Background images from style attributes
+        $el.find('[style*="background-image"]').each((idx, element) => {
+          const style = $(element).attr('style');
+          if (style) {
+            const match = style.match(/background-image:\s*url\(['"]?(.*?)['"]?\)/);
+            if (match) {
+              images.push(match[1]);
+            }
+          }
+        });
+        
+        // Parent container images
+        const parentContainer = $el.closest('.event, .calendar-item, .listing');
+        if (parentContainer.length) {
+          parentContainer.find('img').each((idx, img) => {
+            const src = $(img).attr('src') || $(img).attr('data-src');
+            if (src && !src.includes('placeholder')) {
+              images.push(src.startsWith('//') ? 'https:' + src : src);
+            }
+          });
+        }
 
         // Prefer aria or img alt if available, otherwise use anchor text
         let title = aria || imgAlt || text;
@@ -133,12 +167,58 @@ async function scrapeSceneCalendar() {
           const link = el.href || el.getAttribute('href') || null;
           let dateText = '';
           try {
-            const m = link && link.match(/(\d{4}-\d{2}-\d{2}T\d{2})/);
+            const m = link && link.match(/(\\d{4}-\\d{2}-\\d{2}T\\d{2})/);
             if (m) dateText = m[1];
           } catch (e) {}
           const location = el.querySelector('.venue, .location')?.textContent?.trim() || '';
-          const image = img ? img.src : null;
-          return { title: title || '', dateText, location, image, url: link };
+          
+          // Enhanced image extraction for Puppeteer
+          const images = [];
+          
+          // Direct images
+          const imgElements = el.querySelectorAll('img[src]');
+          imgElements.forEach(img => {
+            if (img.src && !img.src.includes('placeholder') && !img.src.includes('loading')) {
+              images.push(img.src);
+            }
+          });
+          
+          // Data attributes
+          const dataElements = el.querySelectorAll('[data-image], [data-src], [data-background]');
+          dataElements.forEach(element => {
+            const dataSrc = element.dataset.image || element.dataset.src || element.dataset.background;
+            if (dataSrc) images.push(dataSrc);
+          });
+          
+          // Background images
+          const bgElements = el.querySelectorAll('[style*=\"background-image\"]');
+          bgElements.forEach(element => {
+            const style = getComputedStyle(element);
+            const bgImage = style.backgroundImage;
+            if (bgImage && bgImage !== 'none') {
+              const match = bgImage.match(/url\\(['\"]?(.*?)['\"]?\\)/);
+              if (match) images.push(match[1]);
+            }
+          });
+          
+          // Parent container images
+          const parentContainer = el.closest('.event, .calendar-item, .listing');
+          if (parentContainer) {
+            const parentImages = parentContainer.querySelectorAll('img[src]');
+            parentImages.forEach(img => {
+              if (img.src && !img.src.includes('placeholder')) {
+                images.push(img.src);
+              }
+            });
+          }
+          
+          return { 
+            title: title || '', 
+            dateText, 
+            location, 
+            images: [...new Set(images)], // Remove duplicates
+            url: link 
+          };
         });
       });
 
@@ -186,25 +266,59 @@ async function scrapeSceneCalendar() {
         .trim();
     }
 
-    const normalized = events.map((e) => {
+    // Process events with enhanced image handling
+    const normalized = [];
+    for (const [index, e] of events.entries()) {
       let parsedDate = new Date();
       try {
         const maybe = new Date(e.dateText);
         if (!isNaN(maybe)) parsedDate = maybe;
       } catch {}
 
-      return {
+      // Enhanced image processing
+      const eventData = {
+        id: `nashvillescene_${index}`,
+        title: e.title || "Untitled Event",
+        description: "Scraped from Nashville Scene calendar",
+        venue: e.location || "Nashville, TN",
+        date: parsedDate
+      };
+
+      // Process images using the enhanced pipeline
+      let imageResult;
+      if (e.images && e.images.length > 0) {
+        console.log(`Processing ${e.images.length} images for event: ${eventData.title}`);
+        imageResult = await imageProcessor.processEventImages(e.images, eventData);
+      } else if (e.image) {
+        console.log(`Processing single image for event: ${eventData.title}`);
+        imageResult = await imageProcessor.processEventImage(e.image, eventData);
+      } else {
+        console.log(`No images found for event: ${eventData.title}, using fallback`);
+        imageResult = imageProcessor.getFallbackResult(eventData);
+      }
+
+      const normalizedEvent = {
         title: (e.title || "Untitled Event").trim(),
         description: "Scraped from Nashville Scene calendar",
         date: parsedDate,
         location: e.location || "Nashville, TN",
-        image: e.image || null,
+        image: imageResult.url,
+        imageSource: imageResult.source,
+        imageQuality: imageResult.quality,
+        imageProcessedAt: new Date(),
         url: e.url || url,
         normalizedTitle: normalizeTitle(e.title || ""),
         createdBy: null,
         source: "nashvillescene",
       };
-    });
+
+      normalized.push(normalizedEvent);
+      
+      // Add small delay to avoid overwhelming image processing
+      if (index < events.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
 
     // Filter for music events only and add genre classification
     const musicEvents = normalized.filter(event => {

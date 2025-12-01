@@ -25,6 +25,21 @@ const EventSchema = new mongoose.Schema({
     default: null,
     trim: true,
   },
+  // Enhanced image metadata fields
+  imageSource: {
+    type: String,
+    enum: ["scraped", "generated", "manual", "fallback"],
+    default: "generated"
+  },
+  imageQuality: {
+    type: String,
+    enum: ["high", "medium", "low", "fallback"],
+    default: "medium"
+  },
+  imageProcessedAt: {
+    type: Date,
+    default: null
+  },
   normalizedTitle: {
     type: String,
     required: false,

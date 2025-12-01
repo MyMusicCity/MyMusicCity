@@ -4,6 +4,7 @@ const puppeteer = require("puppeteer");
 const mongoose = require("../mongoose");
 const Event = require("../models/Event");
 const { getEventImage } = require("../utils/eventImages");
+const { imageProcessor, imageExtractionStrategies } = require("../utils/imageProcessor");
 const { classifyEvent } = require("../utils/musicClassifier");
 const { launchBrowser } = require("../utils/puppeteerConfig");
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
@@ -36,7 +37,7 @@ async function scrapeDo615() {
 
     const events = await page.evaluate(() => {
       const items = Array.from(document.querySelectorAll(".ds-listing.event-card"));
-      return items.map((el) => {
+      return items.map((el, index) => {
         const title =
           el.querySelector(".ds-listing-event-title-text")?.textContent?.trim() ||
           "Untitled Event";
@@ -45,17 +46,41 @@ async function scrapeDo615() {
         const location =
           el.querySelector(".ds-venue-name [itemprop='name']")?.textContent?.trim() ||
           "Nashville, TN";
-        const image =
-          el.querySelector(".ds-cover-image")?.style?.backgroundImage
-            ?.replace(/url\(['"]?(.*?)['"]?\)/, "$1") || null;
+        
+        // Enhanced image extraction with multiple strategies
+        const images = [];
+        
+        // Primary: background image from cover
+        const coverImg = el.querySelector(".ds-cover-image")?.style?.backgroundImage
+          ?.replace(/url\(['"]?(.*?)['"]?\)/, "$1");
+        if (coverImg && !coverImg.includes('placeholder')) {
+          images.push(coverImg);
+        }
+        
+        // Secondary: direct img elements
+        const imgElements = el.querySelectorAll('img[src]');
+        imgElements.forEach(img => {
+          if (img.src && !img.src.includes('placeholder') && !img.src.includes('loading')) {
+            images.push(img.src);
+          }
+        });
+        
+        // Tertiary: data attributes
+        const dataImgElements = el.querySelectorAll('[data-image], [data-src], [data-background]');
+        dataImgElements.forEach(el => {
+          const dataSrc = el.dataset.image || el.dataset.src || el.dataset.background;
+          if (dataSrc) images.push(dataSrc);
+        });
+
         const url = el.querySelector(".ds-listing-event-title")?.href || null;
 
         return {
           title,
           dateText: timeText,
           location,
-          image,
+          images: [...new Set(images)], // Remove duplicates
           url,
+          eventIndex: index
         };
       });
     });
@@ -67,7 +92,7 @@ async function scrapeDo615() {
       return;
     }
 
-    // Normalize and prepare data
+    // Normalize and prepare data with enhanced image processing
     function normalizeTitle(s) {
       if (!s) return null;
       return s
@@ -78,7 +103,9 @@ async function scrapeDo615() {
         .trim();
     }
 
-    const formattedEvents = events.map((e, index) => {
+    // Process events with enhanced image handling
+    const formattedEvents = [];
+    for (const [index, e] of events.entries()) {
       let parsedDate = null;
       try {
         const today = new Date();
@@ -88,21 +115,46 @@ async function scrapeDo615() {
         parsedDate = new Date();
       }
 
-      // Use scraped image if available, otherwise generate one based on content
-      const eventImage = e.image || getEventImage(e.title, "Scraped from Do615 (Nashville Scene network)", index);
+      // Enhanced image processing
+      const eventData = {
+        id: `do615_${index}`,
+        title: e.title,
+        description: "Scraped from Do615 (Nashville Scene network)",
+        venue: e.location,
+        date: parsedDate
+      };
 
-      return {
+      // Process images using the enhanced pipeline
+      let imageResult;
+      if (e.images && e.images.length > 0) {
+        console.log(`Processing ${e.images.length} images for event: ${e.title}`);
+        imageResult = await imageProcessor.processEventImages(e.images, eventData);
+      } else {
+        console.log(`No images found for event: ${e.title}, using fallback`);
+        imageResult = imageProcessor.getFallbackResult(eventData);
+      }
+
+      const formattedEvent = {
         title: e.title,
         normalizedTitle: normalizeTitle(e.title),
         description: "Scraped from Do615 (Nashville Scene network)",
         date: parsedDate,
         location: e.location,
-        image: eventImage,
+        image: imageResult.url,
+        imageSource: imageResult.source,
+        imageQuality: imageResult.quality,
         url: e.url,
         createdBy: null, // avoid ObjectId casting issue
         source: "do615", // optional: mark origin
       };
-    });
+
+      formattedEvents.push(formattedEvent);
+      
+      // Add small delay to avoid overwhelming image processing
+      if (index < events.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
 
     // Filter for music events only and add genre classification
     const musicEvents = formattedEvents.filter(event => {

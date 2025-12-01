@@ -5,6 +5,7 @@ const puppeteer = require("puppeteer");
 const mongoose = require("../mongoose");
 const Event = require("../models/Event");
 const { getEventImage } = require("../utils/eventImages");
+const { imageProcessor, imageExtractionStrategies } = require("../utils/imageProcessor");
 const { classifyEvent } = require("../utils/musicClassifier");
 const { launchBrowser } = require("../utils/puppeteerConfig");
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
@@ -42,11 +43,53 @@ async function scrapeVisitMusicCity() {
         const title = ($el.find("h2,h3,.title").first().text() || "").trim();
         const dateText = ($el.find("time").attr("datetime") || $el.find(".date, .event-date").text() || "").trim();
         const location = ($el.find(".venue, .location").text() || "").trim();
-        const image = $el.find("img").attr("src") || null;
+        
+        // Enhanced image extraction
+        const images = [];
+        
+        // Direct image sources
+        $el.find("img").each((idx, img) => {
+          const src = $(img).attr("src") || $(img).attr("data-src");
+          if (src && !src.includes('placeholder') && !src.includes('loading')) {
+            images.push(src.startsWith('//') ? 'https:' + src : src);
+          }
+        });
+        
+        // Background images from style attributes
+        $el.find('[style*="background-image"]').each((idx, element) => {
+          const style = $(element).attr('style');
+          if (style) {
+            const match = style.match(/background-image:\s*url\(['"]?(.*?)['"]?\)/);
+            if (match) {
+              images.push(match[1]);
+            }
+          }
+        });
+        
+        // Specific Visit Music City selectors
+        const specificSelectors = [
+          '.event-image img', '.calendar-event-image img', '.event-photo img',
+          '.listing-image img', '.attraction-image img'
+        ];
+        specificSelectors.forEach(selector => {
+          $el.find(selector).each((idx, img) => {
+            const src = $(img).attr('src') || $(img).attr('data-src');
+            if (src && !src.includes('placeholder')) {
+              images.push(src.startsWith('//') ? 'https:' + src : src);
+            }
+          });
+        });
+
         const link = $el.find("a").attr("href") || null;
         const fullUrl = link && link.startsWith("http") ? link : (link ? new URL(link, url).toString() : url);
 
-        if (title) events.push({ title, dateText, location, image, url: fullUrl });
+        if (title) events.push({ 
+          title, 
+          dateText, 
+          location, 
+          images: [...new Set(images)], // Remove duplicates
+          url: fullUrl 
+        });
       });
     }
 
@@ -67,9 +110,44 @@ async function scrapeVisitMusicCity() {
           const title = el.querySelector("h2,h3,.title")?.textContent?.trim() || "";
           const dateText = el.querySelector("time")?.getAttribute("datetime") || el.querySelector(".date, .event-date")?.textContent?.trim() || "";
           const location = el.querySelector(".venue, .location")?.textContent?.trim() || "";
-          const img = el.querySelector("img")?.src || null;
+          
+          // Enhanced image extraction for Puppeteer
+          const images = [];
+          
+          // Direct images
+          const imgElements = el.querySelectorAll('img[src]');
+          imgElements.forEach(img => {
+            if (img.src && !img.src.includes('placeholder') && !img.src.includes('loading')) {
+              images.push(img.src);
+            }
+          });
+          
+          // Data attributes
+          const dataElements = el.querySelectorAll('[data-image], [data-src], [data-background]');
+          dataElements.forEach(element => {
+            const dataSrc = element.dataset.image || element.dataset.src || element.dataset.background;
+            if (dataSrc) images.push(dataSrc);
+          });
+          
+          // Background images
+          const bgElements = el.querySelectorAll('[style*="background-image"]');
+          bgElements.forEach(element => {
+            const style = getComputedStyle(element);
+            const bgImage = style.backgroundImage;
+            if (bgImage && bgImage !== 'none') {
+              const match = bgImage.match(/url\(['"]?(.*?)['"]?\)/);
+              if (match) images.push(match[1]);
+            }
+          });
+
           const link = el.querySelector("a")?.href || null;
-          return { title, dateText, location, image: img, url: link };
+          return { 
+            title, 
+            dateText, 
+            location, 
+            images: [...new Set(images)], // Remove duplicates
+            url: link 
+          };
         });
       });
     }
@@ -86,25 +164,65 @@ async function scrapeVisitMusicCity() {
         .trim();
     }
 
-    const normalized = events.map((e) => {
+    // Process events with enhanced image handling
+    function normalizeTitle(s) {
+      if (!s) return null;
+      return s
+        .toString()
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .replace(/[\W_]+/g, " ")
+        .trim();
+    }
+
+    const normalized = [];
+    for (const [index, e] of events.entries()) {
       let parsedDate = new Date();
       try {
         const maybe = new Date(e.dateText);
         if (!isNaN(maybe)) parsedDate = maybe;
       } catch {}
 
-      return {
+      // Enhanced image processing
+      const eventData = {
+        id: `visitmusiccity_${index}`,
+        title: e.title || "Untitled Event",
+        description: "Scraped from Visit Music City",
+        venue: e.location || "Nashville, TN",
+        date: parsedDate
+      };
+
+      // Process images using the enhanced pipeline
+      let imageResult;
+      if (e.images && e.images.length > 0) {
+        console.log(`Processing ${e.images.length} images for event: ${eventData.title}`);
+        imageResult = await imageProcessor.processEventImages(e.images, eventData);
+      } else {
+        console.log(`No images found for event: ${eventData.title}, using fallback`);
+        imageResult = imageProcessor.getFallbackResult(eventData);
+      }
+
+      const normalizedEvent = {
         title: (e.title || "Untitled Event").trim(),
         description: "Scraped from Visit Music City",
         date: parsedDate,
         location: e.location || "Nashville, TN",
-        image: e.image || null,
+        image: imageResult.url,
+        imageSource: imageResult.source,
+        imageQuality: imageResult.quality,
         url: e.url || url,
         normalizedTitle: normalizeTitle(e.title || ""),
         createdBy: null,
         source: "visitmusiccity",
       };
-    });
+
+      normalized.push(normalizedEvent);
+      
+      // Add small delay to avoid overwhelming image processing
+      if (index < events.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
 
     // Filter for music events only and add genre classification
     const musicEvents = normalized.filter(event => {
