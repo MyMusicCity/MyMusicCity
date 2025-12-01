@@ -33,8 +33,8 @@ async function scrapeNashvilleScene() {
   try {
     console.log("🔧 Browser Installation Script Starting...");
 
-    // Load environment
-    require('dotenv').config();
+    // Load environment from parent directory
+    require('dotenv').config({ path: '../.env' });
 
     console.log("🔧 Scraping config: timeout=120000ms, waitUntil=networkidle, retries=1");
 
@@ -42,6 +42,19 @@ async function scrapeNashvilleScene() {
     const mongoose = require('../mongoose');
     console.log('MongoDB connection state:', mongoose.connection.readyState, '(disconnected)');
     console.log('Connecting to MongoDB...');
+
+    // Actually connect to MongoDB
+    if (mongoose.connection.readyState === 0) {
+      await mongoose.connect(process.env.MONGO_URI, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+        serverSelectionTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+      });
+      console.log('✅ MongoDB connected successfully');
+    } else {
+      console.log('✅ MongoDB already connected');
+    }
 
     console.log('Launching Puppeteer...');
     console.log('Starting enhanced browser launch sequence...');
@@ -66,26 +79,36 @@ async function scrapeNashvilleScene() {
 
     console.log('Extracting event data...');
     const events = await page.evaluate(() => {
-      const eventElements = document.querySelectorAll(".ds-listing-event");
+      const eventElements = document.querySelectorAll(".event-card");
       
       return Array.from(eventElements).map((el, index) => {
-        const title = el.querySelector(".ds-listing-event-title")?.textContent?.trim() || "Untitled Event";
-        const timeText = el.querySelector(".ds-listing-event-calendar-date-day, .ds-listing-event-time")?.textContent?.trim() || "";
-        const location = el.querySelector(".ds-listing-event-venue")?.textContent?.trim() || "";
+        // Updated selectors based on actual DO615 structure
+        const title = el.querySelector(".ds-listing-event-title-text")?.textContent?.trim() || "Untitled Event";
+        const timeText = el.querySelector(".ds-event-time")?.textContent?.trim() || "";
+        const location = el.querySelector(".ds-venue-name span[itemprop='name']")?.textContent?.trim() || "";
         
+        // Extract image from background-image style
         const images = [];
-        const imgElements = el.querySelectorAll('img');
-        imgElements.forEach(img => {
-          if (img.src && img.src.includes('http')) {
-            images.push(img.src);
+        const coverImage = el.querySelector('.ds-cover-image');
+        if (coverImage && coverImage.style.backgroundImage) {
+          const imageMatch = coverImage.style.backgroundImage.match(/url\(['"]([^'"]+)['"]\)/);
+          if (imageMatch) {
+            images.push(imageMatch[1]);
           }
-        });
+        }
 
-        const url = el.querySelector(".ds-listing-event-title")?.href || null;
+        // Get the event URL from the main title link
+        const linkEl = el.querySelector(".ds-listing-event-title");
+        const url = linkEl?.href || null;
+
+        // Extract date from meta tag for better accuracy
+        const dateMetaEl = el.querySelector('meta[itemprop="startDate"]');
+        const datetime = dateMetaEl?.getAttribute('datetime') || '';
 
         return {
           title,
           dateText: timeText,
+          datetime,
           location,
           images: [...new Set(images)], // Remove duplicates
           url,
@@ -107,7 +130,14 @@ async function scrapeNashvilleScene() {
     for (const [index, e] of events.entries()) {
       let parsedDate;
       try {
-        if (e.dateText) {
+        // Try to parse from datetime meta tag first
+        if (e.datetime) {
+          parsedDate = new Date(e.datetime);
+          if (isNaN(parsedDate.getTime())) {
+            throw new Error('Invalid datetime');
+          }
+        } else if (e.dateText) {
+          // Fallback to parsing from displayed time text
           const dateMatch = e.dateText.match(/(\w+)\s+(\d+)/);
           if (dateMatch) {
             const [, month, day] = dateMatch;
