@@ -258,18 +258,25 @@ export default function Home() {
             LEFT FILTER PANEL
       ------------------------- */}
       <aside className="filters">
-        <h3>DATE</h3>
-        <input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-        />
-        <input
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-        />
-
+        <h3>Filters</h3>
+        <div className="filter-group">
+          <label className="filter-label">Start Date</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            placeholder="From date..."
+          />
+        </div>
+        <div className="filter-group">
+          <label className="filter-label">End Date</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            placeholder="To date..."
+          />
+        </div>
       </aside>
 
       {/* -------------------------
