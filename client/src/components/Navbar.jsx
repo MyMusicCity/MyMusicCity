@@ -34,8 +34,22 @@ export default function Navbar() {
       <div className="nav-icons">
         {isAuthenticated ? (
           <>
-            <Link to="/rsvps">
+            <Link to="/rsvps" className="nav-link-with-text" style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              textDecoration: 'none',
+              color: '#333',
+              fontWeight: '500',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.backgroundColor = '#f0f0f0'}
+            onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
+            >
               <FaHeart className="nav-icon" title="My RSVPs" />
+              <span style={{ fontSize: '14px' }}>My RSVPs</span>
             </Link>
             
             {/* User profile dropdown */}
