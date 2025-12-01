@@ -426,13 +426,31 @@ app.get("/api/users", async (_req, res) => {
 // ⭐ GET CURRENT EVENTS (LAST 2 WEEKS) WITH ENHANCED FILTERING
 app.get("/api/events/current", async (req, res) => {
   try {
-    // Default: Only show events from the last 2 weeks forward
-    const defaultStartDate = new Date();
-    defaultStartDate.setDate(defaultStartDate.getDate() - 14);
+    // For presentation: Show events from 1 month ago to 3 months forward
+    const presentationStartDate = new Date();
+    presentationStartDate.setMonth(presentationStartDate.getMonth() - 1);
+    
+    const presentationEndDate = new Date();
+    presentationEndDate.setMonth(presentationEndDate.getMonth() + 3);
     
     let query = { 
-      date: { $gte: defaultStartDate }
+      date: { 
+        $gte: presentationStartDate,
+        $lte: presentationEndDate
+      }
     };
+    
+    // Prioritize scraped events for presentation
+    if (!req.query.source) {
+      // Default to showing scraped events first, then fallback
+      query.$or = [
+        { source: 'do615' },
+        { source: 'nashvillescene' }, 
+        { source: 'visitmusiccity' },
+        { source: 'fallback' },
+        { source: 'presentation' }
+      ];
+    }
     
     // Optional filtering parameters
     if (req.query.genre && req.query.genre !== 'all') {
@@ -482,7 +500,7 @@ app.get("/api/events/current", async (req, res) => {
       return m;
     }, {});
 
-    // Enhanced sorting: prioritize scraped images, then by date
+    // Enhanced sorting: prioritize scraped events, then by date
     events = events
       .map((ev) => ({
         ...ev,
@@ -491,17 +509,24 @@ app.get("/api/events/current", async (req, res) => {
         commentCount: commentMap[String(ev._id)] || 0
       }))
       .sort((a, b) => {
-        // First, prioritize events with scraped images
+        // First, prioritize scraped events (do615, nashvillescene, etc.)
+        const aIsScraped = ['do615', 'nashvillescene', 'visitmusiccity'].includes(a.source);
+        const bIsScraped = ['do615', 'nashvillescene', 'visitmusiccity'].includes(b.source);
+        if (aIsScraped && !bIsScraped) return -1;
+        if (!aIsScraped && bIsScraped) return 1;
+        
+        // Then prioritize events with scraped images
         const aHasScraped = a.imageSource === 'scraped';
         const bHasScraped = b.imageSource === 'scraped';
         if (aHasScraped && !bHasScraped) return -1;
         if (!aHasScraped && bHasScraped) return 1;
         
-        // Then sort by date (ascending - soonest first)
+        // Finally sort by date (ascending - soonest first)
         const dateA = new Date(a.date || 0);
         const dateB = new Date(b.date || 0);
         return dateA - dateB;
-      });
+      })
+      .slice(0, 50); // Limit to 50 events for performance
 
     res.json(events);
 
