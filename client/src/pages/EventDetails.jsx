@@ -13,6 +13,13 @@ import {
 } from "../api";
 import { AuthContext } from "../AuthContext";
 
+// Helper function for consistent avatar generation across the app
+const getAvatarText = (username, email) => {
+  if (!username && !email) return "?";
+  const text = username || email;
+  return text[0].toUpperCase();
+};
+
 export default function EventDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -383,7 +390,7 @@ export default function EventDetails() {
                     className="attendee-link"
                   >
                     <div className="attendee-avatar">
-                      {u.username ? u.username[0].toUpperCase() : "?"}
+                      {getAvatarText(u.username, u.email)}
                     </div>
                     <div className="attendee-name">{u.username || "Unknown"}</div>
                   </Link>

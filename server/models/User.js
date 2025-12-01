@@ -5,7 +5,8 @@ const UserSchema = new mongoose.Schema({
   email:    { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true },
   year:     { type: String },   
-  major:    { type: String },  
+  major:    { type: String },
+  phone:    { type: String, required: false, trim: true }, // Optional phone number
   // NEW: Admin and Auth0 integration fields (all optional for backward compatibility)
   role: {
     type: String,

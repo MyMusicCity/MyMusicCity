@@ -6,6 +6,15 @@ import { AuthContext } from "../AuthContext";
 import { getCurrentUser, updateUserProfile, deleteAccount } from "../api";
 import "../styles.css";
 
+// Helper function for consistent avatar generation across the app
+const getAvatarText = (username, email) => {
+  if (!username && !email) return "?";
+  
+  // Use first letter of username, or first letter of email if no username
+  const text = username || email;
+  return text[0].toUpperCase();
+};
+
 export default function Profile() {
   const navigate = useNavigate();
   const { user: contextUser, logout } = useContext(AuthContext);
@@ -22,9 +31,10 @@ export default function Profile() {
     email: "",
     year: "",
     major: "",
+    phone: "", // Optional phone number
   });
   
-  // Check if all fields are filled for save button
+  // Check if required fields are filled for save button (phone is optional)
   const canSave = editValues.username.trim() && editValues.email.trim() && editValues.year.trim() && editValues.major.trim();
 
   // Load user profile
@@ -46,6 +56,7 @@ export default function Profile() {
           email: "",
           year: "",
           major: "",
+          phone: "", // Optional phone
         });
       } catch (err) {
         console.error("Failed to load profile:", err);
@@ -275,7 +286,7 @@ export default function Profile() {
     );
   }
 
-  const avatarLetter = (profile?.username || profile?.email || "?")[0].toUpperCase();
+  const avatarLetter = getAvatarText(profile?.username, profile?.email);
   const profileIncomplete = !profile?.profileComplete;
 
   return (
@@ -344,6 +355,17 @@ export default function Profile() {
               value={editValues.major}
               onChange={(e) => setEditValues({...editValues, major: e.target.value})}
               placeholder="e.g., Computer Science, Music"
+              disabled={saving}
+            />
+          </div>
+
+          <div className="form-field">
+            <label><strong>Phone Number:</strong> <span className="optional-label">(optional)</span></label>
+            <input
+              type="tel"
+              value={editValues.phone}
+              onChange={(e) => setEditValues({...editValues, phone: e.target.value})}
+              placeholder="e.g., (615) 123-4567"
               disabled={saving}
             />
           </div>

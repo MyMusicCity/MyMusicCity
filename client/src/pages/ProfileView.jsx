@@ -3,6 +3,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { getUserById } from "../api";
 import "../styles.css";
 
+// Helper function for consistent avatar generation
+const getAvatarText = (username, email) => {
+  if (!username && !email) return "?";
+  const text = username || email;
+  return text[0].toUpperCase();
+};
+
 export default function ProfileView() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -37,7 +44,7 @@ export default function ProfileView() {
   return (
     <div className="profile-page">
       <div className="profile-card">
-        <div className="profile-avatar">{user.username ? user.username[0].toUpperCase() : "?"}</div>
+        <div className="profile-avatar">{getAvatarText(user.username, user.email)}</div>
         <h2 className="profile-name">{user.username}</h2>
         <p><strong>Email:</strong> {user.email}</p>
         <p>Member since: {new Date(user.createdAt).toLocaleDateString()}</p>
