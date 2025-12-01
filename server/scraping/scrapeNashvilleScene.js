@@ -314,13 +314,43 @@ async function scrapeDo615() {
       console.log("No new events to add (all already exist)");
     } else {
       try {
-        await Event.insertMany(newEvents, { ordered: false });
-        console.log(`Added ${newEvents.length} new events to the database`);
-      } catch (dbErr) {
-        if (dbErr && dbErr.code === 11000) {
-          console.warn("Some events were skipped due to duplicate keys (unique index)");
+        console.log(`💾 Inserting ${newEvents.length} events into database...`);
+        
+        // Use writeConcern to ensure data is written to disk before returning
+        const insertResult = await Event.insertMany(newEvents, { 
+          ordered: false,
+          writeConcern: { w: 'majority', j: true } // Wait for journal write
+        });
+        
+        console.log(`📝 Insert operation completed for ${insertResult.length} events`);
+        
+        // CRITICAL: Wait for database transaction to fully commit
+        console.log('⏳ Waiting for database transaction to commit...');
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second safety buffer
+        
+        // Verify the insertion actually persisted
+        console.log('🔍 Verifying events were successfully saved...');
+        const verifyCount = await Event.countDocuments({ source: 'do615' });
+        const totalCount = await Event.countDocuments({});
+        
+        console.log(`✅ DATABASE VERIFICATION:`);
+        console.log(`   📊 Total events in database: ${totalCount}`);
+        console.log(`   🎯 DO615 events in database: ${verifyCount}`);
+        console.log(`   💾 Events inserted this run: ${insertResult.length}`);
+        
+        if (verifyCount === 0) {
+          console.error('🚨 CRITICAL ERROR: Events not found after insertion - possible transaction rollback!');
         } else {
-          console.error("Failed to insert DO615 events:", dbErr && dbErr.message ? dbErr.message : dbErr);
+          console.log(`🎉 SUCCESS: ${verifyCount} DO615 events confirmed in database`);
+        }
+        
+      } catch (dbErr) {
+        console.error("🚨 DATABASE INSERT FAILED:", dbErr);
+        if (dbErr && dbErr.code === 11000) {
+          console.warn("⚠️ Some events were skipped due to duplicate keys (unique index)");
+        } else {
+          console.error("❌ Critical database error:", dbErr && dbErr.message ? dbErr.message : dbErr);
+          throw dbErr; // Re-throw to prevent connection close
         }
       }
     }
@@ -328,8 +358,22 @@ async function scrapeDo615() {
     console.error("Scrape failed:", err.message);
   } finally {
     if (browser) await browser.close();
-    // Only close connection if we opened it (running standalone)
+    
+    // CRITICAL: Ensure database operations are complete before closing connection
     if (shouldCloseConnection) {
+      console.log('🔄 Ensuring all database operations are complete...');
+      
+      // Force a small operation to ensure connection is still active and transactions committed
+      try {
+        const finalCount = await Event.countDocuments({ source: 'do615' });
+        console.log(`📊 Final verification: ${finalCount} DO615 events in database before disconnect`);
+      } catch (verifyErr) {
+        console.error('⚠️ Final verification failed:', verifyErr.message);
+      }
+      
+      // Wait additional time before closing connection
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       await mongoose.connection.close();
       console.log("MongoDB connection closed.");
     } else {
