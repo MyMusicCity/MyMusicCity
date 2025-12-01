@@ -62,8 +62,8 @@ async function getAuthHeaders() {
         message: error.message,
         error_description: error.error_description
       });
-      // If Auth0 is configured but fails, don't fallback to localStorage for security
-      throw new Error(`Authentication required: ${error.message}. Please sign in again.`);
+      // For public endpoints, don't throw error - allow the request to proceed without auth
+      console.log('⚠️ Proceeding without Auth0 token for public endpoint');
     }
   } else {
     console.log('⚠️ No Auth0 token provider available');
