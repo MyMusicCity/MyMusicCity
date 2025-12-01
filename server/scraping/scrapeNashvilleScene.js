@@ -14,7 +14,7 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 // Production environment detection
 const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
-const BYPASS_MUSIC_FILTER = process.env.BYPASS_MUSIC_FILTER === 'true'; // Debug flag to disable filtering
+const BYPASS_MUSIC_FILTER = process.env.BYPASS_MUSIC_FILTER === 'true' || true; // Debug: bypass enabled by default
 const SCRAPING_CONFIG = {
   timeout: isProduction ? 180000 : 120000, // 3min for production, 2min for dev
   waitUntil: isProduction ? 'load' : 'networkidle', // Faster load event for production
