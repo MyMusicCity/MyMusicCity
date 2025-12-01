@@ -101,6 +101,16 @@
     </div>
 
     <div class="card">
+        <h2>🔄 Scraper Controls</h2>
+        <p>Manually trigger scrapers to get fresh events with enhanced image processing.</p>
+        <button class="btn" onclick="triggerAllScrapers()">🚀 Run All Scrapers</button>
+        <button class="btn" onclick="triggerScraper('nashvillescene')">📰 Nashville Scene</button>
+        <button class="btn" onclick="triggerScraper('visitmusiccity')">🎭 Visit Music City</button>
+        <button class="btn" onclick="triggerScraper('scenecalendar')">📅 Scene Calendar</button>
+        <div id="scraper-result" style="margin-top: 15px;"></div>
+    </div>
+
+    <div class="card">
         <h2>📈 Current Events API</h2>
         <p>Test the filtered API endpoint that shows only recent events with enhanced image priority.</p>
         <button class="btn" onclick="testCurrentAPI()">🔗 Test /api/events/current</button>
@@ -252,6 +262,93 @@
         
         // Initial load
         refreshDiagnostics();
+
+        // Scraper control functions
+        async function triggerAllScrapers() {
+            const button = event.target;
+            const resultDiv = document.getElementById('scraper-result');
+            
+            try {
+                button.disabled = true;
+                button.textContent = '🔄 Running all scrapers...';
+                resultDiv.innerHTML = '<p>🔄 Triggering all scrapers...</p>';
+                
+                const response = await fetch('/api/admin/scrape/all', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    const scraperResults = result.scrapers.map(s => 
+                        `<li class="${s.status === 'success' ? 'status-good' : 'status-error'}">
+                            ${s.status === 'success' ? '✅' : '❌'} ${s.name}: ${s.message}
+                        </li>`
+                    ).join('');
+                    
+                    resultDiv.innerHTML = `
+                        <div class="status-good">
+                            <h4>🚀 Scraper Results: ${result.message}</h4>
+                            <ul>${scraperResults}</ul>
+                        </div>
+                    `;
+                    
+                    // Refresh diagnostics after scraping
+                    setTimeout(refreshDiagnostics, 2000);
+                } else {
+                    resultDiv.innerHTML = `<div class="status-error">❌ Scraping failed: ${result.error}</div>`;
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status-error">❌ Error during scraping: ${error.message}</div>`;
+            } finally {
+                button.disabled = false;
+                button.textContent = '🚀 Run All Scrapers';
+            }
+        }
+
+        async function triggerScraper(source) {
+            const button = event.target;
+            const resultDiv = document.getElementById('scraper-result');
+            
+            try {
+                button.disabled = true;
+                button.textContent = '🔄 Running...';
+                resultDiv.innerHTML = `<p>🔄 Running ${source} scraper...</p>`;
+                
+                const response = await fetch(`/api/admin/scrape/${source}`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.innerHTML = `
+                        <div class="status-good">
+                            <h4>✅ ${source} Scraper Completed</h4>
+                            <p>${result.message}</p>
+                        </div>
+                    `;
+                    
+                    // Refresh diagnostics after scraping
+                    setTimeout(refreshDiagnostics, 2000);
+                } else {
+                    resultDiv.innerHTML = `<div class="status-error">❌ ${source} scraper failed: ${result.error}</div>`;
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status-error">❌ Error running ${source} scraper: ${error.message}</div>`;
+            } finally {
+                button.disabled = false;
+                // Reset button text based on source
+                const buttonTexts = {
+                    'nashvillescene': '📰 Nashville Scene',
+                    'visitmusiccity': '🎭 Visit Music City', 
+                    'scenecalendar': '📅 Scene Calendar'
+                };
+                button.textContent = buttonTexts[source] || `🔄 ${source}`;
+            }
+        }
     </script>
 </body>
 </html>

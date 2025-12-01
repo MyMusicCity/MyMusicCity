@@ -168,20 +168,122 @@ app.get("/api/admin/database/diagnose", async (req, res) => {
 
 app.post("/api/admin/database/cleanup", async (req, res) => {
   try {
-    const { cleanupOldEventsProduction } = require("./utils/productionCleanup");
-    const result = await cleanupOldEventsProduction();
+    console.log("Starting database cleanup...");
     
-    res.json({
+    // Calculate cutoff date (2 weeks ago from current date)
+    const currentDate = new Date();
+    const cutoffDate = new Date(currentDate);
+    cutoffDate.setDate(cutoffDate.getDate() - 14);
+    
+    console.log(`Cutoff Date: ${cutoffDate.toISOString().split('T')[0]}`);
+    
+    // Get counts before cleanup
+    const totalBefore = await Event.countDocuments();
+    const recentBefore = await Event.countDocuments({ 
+      date: { $gte: cutoffDate }
+    });
+    const oldEvents = await Event.countDocuments({ 
+      date: { $lt: cutoffDate }
+    });
+    
+    console.log(`Before cleanup: Total=${totalBefore}, Recent=${recentBefore}, Old=${oldEvents}`);
+    
+    let deletedCount = 0;
+    if (oldEvents > 0) {
+      // Execute deletion
+      console.log(`Deleting ${oldEvents} old events...`);
+      const deleteResult = await Event.deleteMany({ 
+        date: { $lt: cutoffDate }
+      });
+      deletedCount = deleteResult.deletedCount;
+      console.log(`Successfully deleted ${deletedCount} events`);
+    }
+    
+    // Get final counts
+    const totalAfter = await Event.countDocuments();
+    const enhancedEvents = await Event.countDocuments({
+      imageSource: { $exists: true, $ne: null }
+    });
+    
+    const result = {
       success: true,
       timestamp: new Date().toISOString(),
-      ...result
-    });
+      deletedCount: deletedCount,
+      totalAfter: totalAfter,
+      enhancedEvents: enhancedEvents
+    };
+    
+    console.log("Cleanup completed:", result);
+    res.json(result);
     
   } catch (err) {
     console.error("Database cleanup error:", err);
     res.status(500).json({ 
       success: false, 
       error: "Failed to cleanup database",
+      details: err.message 
+    });
+  }
+});
+
+// ⭐ MANUAL SCRAPER TRIGGERS
+app.post("/api/admin/scrape/all", async (req, res) => {
+  try {
+    console.log("🚀 Manual scraping trigger - ALL scrapers");
+    
+    const results = {
+      timestamp: new Date().toISOString(),
+      scrapers: []
+    };
+    
+    // Try to run each scraper
+    const scrapers = [
+      { name: "NashvilleScene", path: "./scraping/scrapeNashvilleScene" },
+      { name: "VisitMusicCity", path: "./scraping/scrapeVisitMusicCity" },
+      { name: "SceneCalendar", path: "./scraping/scrapeSceneCalendar" }
+    ];
+    
+    for (const scraper of scrapers) {
+      try {
+        console.log(`🔄 Running ${scraper.name} scraper...`);
+        const scraperModule = require(scraper.path);
+        
+        if (typeof scraperModule === 'function') {
+          await scraperModule();
+        } else if (scraperModule.default) {
+          await scraperModule.default();
+        }
+        
+        results.scrapers.push({ 
+          name: scraper.name, 
+          status: "success",
+          message: "Completed successfully"
+        });
+        console.log(`✅ ${scraper.name} completed`);
+        
+      } catch (scraperErr) {
+        console.error(`❌ ${scraper.name} failed:`, scraperErr.message);
+        results.scrapers.push({ 
+          name: scraper.name, 
+          status: "error",
+          message: scraperErr.message
+        });
+      }
+    }
+    
+    const successCount = results.scrapers.filter(s => s.status === 'success').length;
+    
+    res.json({
+      success: successCount > 0,
+      message: `${successCount}/${scrapers.length} scrapers completed successfully`,
+      ...results
+    });
+    
+  } catch (err) {
+    console.error("Manual scraping trigger error:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: "Failed to trigger scrapers",
       details: err.message 
     });
   }
