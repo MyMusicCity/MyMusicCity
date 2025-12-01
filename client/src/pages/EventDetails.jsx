@@ -354,32 +354,33 @@ export default function EventDetails() {
 
   return (
     <div className="event-details">
-      <button className="back-btn" onClick={() => navigate(-1)}>
-        ← Back
-      </button>
+      <div className="event-header">
+        <button className="back-btn" onClick={() => navigate(-1)}>
+          ← Back
+        </button>
+      <img src={event.image} alt="" className="event-details-img" />
 
-      <img src={event.image} alt={event.title} className="event-details-img" />
+      <div className="event-card-detail">
+        {event.image && (
+          <div className="event-image-container">
+            <img src={event.image} alt="" className="event-details-img" />
+          </div>
+        )}
+        
+        <div className="event-details-content">
+          <div className="event-main-info">
+            <h1 className="event-title">{event.title}</h1>
+            <div className="event-meta">
+              <p className="event-date">📅 {formatDate(event.date)}</p>
+              <p className="event-location">📍 {event.location}</p>
+            </div>
+          </div>
 
-      <div className="event-details-content">
-        <h1>{event.title}</h1>
-        <p className="event-date">{formatDate(event.date)}</p>
-        <p className="event-location">📍 {event.location}</p>
-
-        {/* ========================
-              ATTENDEES & RSVP
-        ======================== */}
-        <div style={{ marginTop: "1rem" }}>
+          {/* RSVP Section */}
+          <div className="rsvp-section">
           <button 
+            className="refresh-btn"
             onClick={refreshAttendees}
-            style={{
-              background: 'none',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
-              padding: '4px 8px',
-              fontSize: '12px',
-              cursor: 'pointer',
-              marginBottom: '1rem'
-            }}
           >
             🔄 Refresh Status
           </button>
@@ -437,36 +438,12 @@ export default function EventDetails() {
 
             if (isAttending) {
               return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '8px 12px',
-                    backgroundColor: '#e8f5e8',
-                    border: '1px solid #4caf50',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    color: '#2e7d32'
-                  }}>
+                <div className="rsvp-status">
+                  <div className="attending-badge">
                     ✅ You're attending this event
                   </div>
                   <button
-                    className="rsvp-btn cancel"
-                    style={{
-                      backgroundColor: '#212121',
-                      color: '#CFAE70',
-                      border: 'none',
-                      padding: '10px 20px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      transition: 'background-color 0.2s'
-                    }}
-                    onMouseOver={(e) => e.target.style.backgroundColor = '#2c2c2c'}
-                    onMouseOut={(e) => e.target.style.backgroundColor = '#212121'}
+                    className="cancel-rsvp-btn"
                     onClick={async () => {
                       if (!user) {
                         alert("Please log in to cancel RSVP.");
@@ -508,20 +485,7 @@ export default function EventDetails() {
 
             return (
               <button
-                className="rsvp-btn primary"
-                style={{
-                  backgroundColor: '#4caf50',
-                  color: 'white',
-                  border: 'none',
-                  padding: '12px 24px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseOver={(e) => e.target.style.backgroundColor = '#45a049'}
-                onMouseOut={(e) => e.target.style.backgroundColor = '#4caf50'}
+                className="rsvp-btn"
                 onClick={async () => {
                   if (!user) {
                     alert("Please log in to RSVP.");
@@ -552,86 +516,80 @@ export default function EventDetails() {
                 🎵 RSVP to This Event
               </button>
             );
-          })()}
-        </div>
-        <div className="attendees">
-          <h3>Attendees</h3>
-
-          {attendees.length > 0 ? (
-            <div className="attendee-list">
-              {attendees.map((r) => {
-                const u = r.user || {};
-                const uid = u._id || u.id;
-                return (
-                  <Link
-                    key={uid}
-                    to={`/profile/${uid}`}
-                    className="attendee-link"
-                  >
-                    <div className="attendee-avatar">
-                      {getAvatarText(u.username, u.email, null)}
-                    </div>
-                    <div className="attendee-name">{u.username || "Unknown"}</div>
-                  </Link>
-                );
-              })}
-            </div>
-          ) : (
-            <p>No attendees yet.</p>
-          )}
-        </div>
-
-        {/* ========================
-              COMMENTS SECTION
-        ======================== */}
-        <div className="comments-section" style={{ marginTop: "2rem" }}>
-          <h3>Comments ({totalComments})</h3>
-
-          {/* Comment Input */}
-          <div className="comment-input" style={{ marginTop: "1rem" }}>
-            <textarea
-              placeholder="Write a comment..."
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              rows={3}
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                borderRadius: "8px",
-                border: "1px solid #ccc",
-              }}
-            />
-            <button
-              className="rsvp-btn"
-              onClick={handleCommentSubmit}
-              style={{ marginTop: "0.5rem" }}
-            >
-              Post Comment
-            </button>
           </div>
 
-          {/* Comment List */}
-          <div className="comments-list" style={{ marginTop: "1.5rem" }}>
-            {comments.length === 0 && <p>No comments yet.</p>}
+          {/* Attendees Section */}
+          <div className="attendees-section">
+            <h3>Attendees ({attendees.length})</h3>
+            {attendees.length > 0 ? (
+              <div className="attendee-list">
+                {attendees.map((r) => {
+                  const u = r.user || {};
+                  const uid = u._id || u.id;
+                  return (
+                    <Link
+                      key={uid}
+                      to={`/profile/${uid}`}
+                      className="attendee-link"
+                    >
+                      <div className="attendee-avatar">
+                        {getAvatarText(u.username, u.email, null)}
+                      </div>
+                      <div className="attendee-name">{u.username || "Unknown"}</div>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="no-attendees">No attendees yet. Be the first to RSVP!</p>
+            )}
+          </div>
 
-            {comments.map((comment) => (
-              <CommentItem
-                key={comment._id}
-                comment={comment}
-                user={user}
-                onReply={async (parentId, text) => {
-                  if (!text.trim()) return;
-                  const evId = event._id || event.id;
-
-                  await postReply(parentId, evId, text);
-
-                  const updated = await getComments(evId);
-                  setComments(updated);
-                  setEvent((prev) => ({ ...prev, commentCount: countAllComments(updated) }));
-                }}
-                onDelete={handleDeleteComment}
+          {/* Comments Section */}
+          <div className="comments-section">
+            <h3>Comments ({totalComments})</h3>
+            
+            {/* Comment Input */}
+            <div className="comment-input">
+              <textarea
+                className="comment-textarea"
+                placeholder="Write a comment..."
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                rows={3}
               />
-            ))}
+              <button
+                className="comment-btn"
+                onClick={handleCommentSubmit}
+              >
+                Post Comment
+              </button>
+            </div>
+
+            {/* Comments List */}
+            <div className="comments-list">
+              {comments.length === 0 && (
+                <p className="no-comments">No comments yet. Start the conversation!</p>
+              )}
+              {comments.map((comment) => (
+                <CommentItem
+                  key={comment._id}
+                  comment={comment}
+                  user={user}
+                  onReply={async (parentId, text) => {
+                    if (!text.trim()) return;
+                    const evId = event._id || event.id;
+
+                    await postReply(parentId, evId, text);
+
+                    const updated = await getComments(evId);
+                    setComments(updated);
+                    setEvent((prev) => ({ ...prev, commentCount: countAllComments(updated) }));
+                  }}
+                  onDelete={handleDeleteComment}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>
