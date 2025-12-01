@@ -35,16 +35,50 @@ const nonMusicKeywords = [
   'art gallery', 'exhibition', 'museum', 'painting', 'sculpture',
   'food', 'restaurant', 'dining', 'cooking', 'culinary', 'wine tasting',
   'market', 'shopping', 'sale', 'vendor', 'craft fair',
-  'movie', 'film', 'cinema', 'screening'
+  'movie', 'film', 'cinema', 'screening', 'catering',
+  // Holiday/seasonal non-music events
+  'lights', 'holiday lights', 'christmas lights', 'zoolumination', 'light display',
+  'tour', 'tours', 'sightseeing', 'guided tour', 'distillery tour',
+  // Other non-music activities  
+  'trivia', 'quiz', 'game night', 'bingo', 'karaoke night',
+  'networking', 'meetup', 'social event', 'party planning',
+  'hotel', 'accommodation', 'lodging', 'stay',
+  'photography', 'photos', 'exhibition', 'visual art',
+  'nintendo', 'gaming', 'esports', 'video game'
 ];
 
 // Nashville-specific music venues
 const nashvilleMusicVenues = [
+  // Major venues
   'ryman auditorium', 'grand ole opry', 'bridgestone arena', 'ascend amphitheater',
-  'the bluebird cafe', 'tootsies', 'honky tonk', 'broadway', 'music city center',
-  'station inn', 'exit/in', 'mercy lounge', 'cannery ballroom', 'marathon music works',
-  'the basement', 'the end', '3rd & lindsley', 'war memorial auditorium',
-  'schermerhorn symphony center', 'musicians corner', 'centennial park'
+  'nissan stadium', 'municipal auditorium', 'war memorial auditorium',
+  'schermerhorn symphony center', 'music city center',
+  
+  // Historic venues  
+  'the bluebird cafe', 'station inn', 'tootsies', 'tootsies orchid lounge',
+  'robert\'s western world', 'the stage on broadway', 'rippy rooftop bar',
+  
+  // Contemporary venues
+  'exit/in', 'mercy lounge', 'cannery ballroom', 'marathon music works',
+  'the basement', 'the basement east', 'the end', '3rd & lindsley',
+  'the listening room', 'city winery', 'the woods amphitheater',
+  
+  // Clubs and smaller venues  
+  'acme feed and seed', 'the 5 spot', 'drkmttr', 'eastside bowl',
+  'the continental mid-town', 'the gulch', 'music valley',
+  
+  // Broadway area
+  'honky tonk central', 'broadway', 'lower broadway', 'the district',
+  'printer\'s alley', 'second fiddle', 'layla\'s',
+  
+  // Music Row and surrounding
+  'music row', 'elliston place', 'the end', 'exit/in',
+  
+  // Outdoor venues
+  'centennial park', 'musicians corner', 'riverfront park', 'bicentennial park',
+  
+  // Hotels with music venues
+  'gaylord opryland', 'union station', 'omni nashville', 'the hermitage hotel'
 ];
 
 /**
@@ -94,10 +128,15 @@ function isMusicEvent(title, description = "", location = "") {
     return true;
   }
   
-  // Super permissive for events with no clear indicators but from Nashville sources
+  // DO NOT assume everything from Nashville is music - be more selective
   if (isFromNashvilleSource && musicScore === 0 && nonMusicScore === 0) {
-    // If no clear indicators either way, assume it's music in Nashville
-    return true;
+    // If no clear indicators either way, check for venue-based classification
+    for (const venue of nashvilleMusicVenues) {
+      if (text.includes(venue.toLowerCase())) {
+        return true; // Only assume music for known music venues
+      }
+    }
+    return false; // Default to NOT music if no clear indicators
   }
   
   // Original logic for other events

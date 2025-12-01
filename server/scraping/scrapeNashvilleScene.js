@@ -2,6 +2,7 @@ const puppeteer = require("puppeteer");
 const { chromium } = require("playwright");
 const Event = require("../models/Event");
 const crypto = require('crypto');
+const { isMusicEvent, classifyEvent } = require('../utils/musicClassifier');
 
 // Simple title normalization function
 function normalizeTitle(title) {
@@ -74,11 +75,24 @@ async function scrapeNashvilleScene() {
     const page = await browser.newPage();
     await page.setViewportSize({ width: 1280, height: 720 });
 
-    console.log('Navigating to https://do615.com/events ...');
-    await page.goto("https://do615.com/events", { waitUntil: "networkidle", timeout: 60000 });
+    // Scrape multiple DO615 pages for comprehensive music coverage
+    const urlsToScrape = [
+      "https://do615.com/events",
+      "https://do615.com/events/music", 
+      "https://do615.com/events/concerts",
+      "https://do615.com/events/live-music"
+    ];
+    
+    const allEvents = [];
+    
+    for (const url of urlsToScrape) {
+      try {
+        console.log(`Navigating to ${url} ...`);
+        await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+        
+        console.log(`Extracting event data from ${url}...`);
 
-    console.log('Extracting event data...');
-    const events = await page.evaluate(() => {
+        const pageEvents = await page.evaluate(() => {
       const eventElements = document.querySelectorAll(".event-card");
       
       return Array.from(eventElements).map((el, index) => {
@@ -117,12 +131,30 @@ async function scrapeNashvilleScene() {
       });
     });
 
-    console.log(`🪄 Found ${events.length} events`);
+        console.log(`🪄 Found ${pageEvents.length} events from ${url}`);
+        allEvents.push(...pageEvents);
+        
+        // Small delay between pages
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+      } catch (urlError) {
+        console.log(`⚠️  Failed to scrape ${url}: ${urlError.message}`);
+      }
+    }
 
-    if (events.length === 0) {
+    // Remove duplicates by URL (same event might appear on multiple pages)
+    const uniqueEvents = allEvents.filter((event, index, self) => 
+      index === self.findIndex(e => e.url === event.url && e.title === event.title)
+    );
+
+    console.log(`🪄 Found ${allEvents.length} total events, ${uniqueEvents.length} unique events`);
+
+    if (uniqueEvents.length === 0) {
       console.log("No events found — check selectors or page structure.");
       return;
     }
+    
+    const events = uniqueEvents;
 
     // Process each event
     const formattedEvents = [];
@@ -207,13 +239,42 @@ async function scrapeNashvilleScene() {
       }
     }
 
-    // SIMPLIFIED: Insert all DO615 events without complex filtering
-    console.log(`🎯 Found ${formattedEvents.length} events - inserting all (no filtering)`);
-
-    // SIMPLIFIED: Basic duplicate checking by title only
-    const titles = formattedEvents.map((e) => e.title);
+    // MUSIC FILTERING: Apply music classification to filter out non-music events
+    console.log(`🎵 Filtering ${formattedEvents.length} events for music content...`);
     
-    console.log(`🔍 Checking for duplicate titles among ${titles.length} events...`);
+    const musicEvents = [];
+    const nonMusicEvents = [];
+    
+    for (const event of formattedEvents) {
+      // Classify the event using music classifier
+      if (isMusicEvent(event.title, event.description, event.location)) {
+        // Enhance classification
+        const classification = classifyEvent(event);
+        event.genre = classification.genre || event.genre;
+        event.musicType = classification.musicType || event.musicType;
+        event.venue = classification.venue || event.venue;
+        
+        musicEvents.push(event);
+        console.log(`   🎵 MUSIC: "${event.title}" (${event.genre}/${event.musicType})`);
+      } else {
+        nonMusicEvents.push(event);
+        console.log(`   🚫 NON-MUSIC: "${event.title}" - ${event.location}`);
+      }
+    }
+    
+    console.log(`\n🎯 Music filtering results:`);
+    console.log(`   🎵 Music events: ${musicEvents.length}`);
+    console.log(`   🚫 Non-music events: ${nonMusicEvents.length}`);
+    console.log(`   📊 Music ratio: ${Math.round((musicEvents.length / formattedEvents.length) * 100)}%`);
+    
+    // Use only music events for insertion
+    const eventsToInsert = musicEvents;
+    console.log(`\n💾 Proceeding with ${eventsToInsert.length} music-only events`);
+
+    // Basic duplicate checking by title only
+    const titles = eventsToInsert.map((e) => e.title);
+    
+    console.log(`🔍 Checking for duplicate titles among ${titles.length} music events...`);
     
     const existing = await Event.find({ 
       title: { $in: titles }
@@ -226,7 +287,7 @@ async function scrapeNashvilleScene() {
     
     const existingTitles = new Set(existing.map((e) => e.title));
 
-    const newEvents = formattedEvents.filter((e) => {
+    const newEvents = eventsToInsert.filter((e) => {
       if (existingTitles.has(e.title)) {
         console.log(`   🚫 SKIPPING DUPLICATE: "${e.title}"`);
         return false;
