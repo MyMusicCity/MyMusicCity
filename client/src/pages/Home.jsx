@@ -205,11 +205,24 @@ export default function Home() {
 
       return matchesSearch && matchesDate;
     })
-    .sort((a, b) =>
-      sortBy === "Soonest"
-        ? new Date(a.date) - new Date(b.date)
-        : new Date(b.date) - new Date(a.date)
-    );
+    .sort((a, b) => {
+      if (sortBy === "Soonest") {
+        // Sort by date ascending (soonest first)
+        return new Date(a.date) - new Date(b.date);
+      } else if (sortBy === "Most Popular") {
+        // Sort by popularity (rsvpCount + commentCount) descending
+        const popularityA = (a.rsvpCount || 0) + (a.commentCount || 0);
+        const popularityB = (b.rsvpCount || 0) + (b.commentCount || 0);
+        if (popularityA !== popularityB) {
+          return popularityB - popularityA; // Higher popularity first
+        }
+        // If popularity is equal, sort by date (soonest first)
+        return new Date(a.date) - new Date(b.date);
+      } else {
+        // Default fallback - sort by date descending (latest first)
+        return new Date(b.date) - new Date(a.date);
+      }
+    });
 
   // Debug logging
   console.log("🔍 Event filtering debug:", {
