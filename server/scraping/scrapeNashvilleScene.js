@@ -77,19 +77,62 @@ async function scrapeNashvilleScene() {
       console.log('🔄 Falling back to Puppeteer...');
       
       try {
-        browser = await puppeteer.launch({
-          headless: true,
-          args: [
-            '--no-sandbox', 
-            '--disable-setuid-sandbox', 
-            '--disable-dev-shm-usage', 
-            '--disable-gpu',
-            '--no-zygote',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor'
-          ]
-        });
-        console.log('✅ Puppeteer launched successfully as fallback!');
+        // Try multiple Chrome executable paths for Render deployment
+        const possiblePaths = [
+          process.env.PUPPETEER_EXECUTABLE_PATH,
+          '/usr/bin/google-chrome-stable',
+          '/usr/bin/google-chrome',
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium',
+          '/opt/render/.cache/puppeteer/chrome/linux-*/chrome-linux*/chrome'
+        ].filter(Boolean);
+        
+        let launchError;
+        
+        for (const executablePath of possiblePaths) {
+          try {
+            console.log(`🔍 Trying Chrome at: ${executablePath}`);
+            browser = await puppeteer.launch({
+              headless: true,
+              executablePath,
+              args: [
+                '--no-sandbox', 
+                '--disable-setuid-sandbox', 
+                '--disable-dev-shm-usage', 
+                '--disable-gpu',
+                '--no-zygote',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding'
+              ]
+            });
+            console.log(`✅ Puppeteer launched successfully with: ${executablePath}`);
+            break;
+          } catch (pathErr) {
+            console.log(`❌ Failed with ${executablePath}: ${pathErr.message}`);
+            launchError = pathErr;
+            continue;
+          }
+        }
+        
+        if (!browser) {
+          // Try without executablePath (use bundled Chromium)
+          console.log('🔄 Trying Puppeteer with bundled Chromium...');
+          browser = await puppeteer.launch({
+            headless: true,
+            args: [
+              '--no-sandbox', 
+              '--disable-setuid-sandbox', 
+              '--disable-dev-shm-usage', 
+              '--disable-gpu',
+              '--no-zygote'
+            ]
+          });
+          console.log('✅ Puppeteer launched with bundled Chromium!');
+        }
+        
       } catch (puppeteerErr) {
         console.error('❌ Both Playwright and Puppeteer failed:', puppeteerErr.message);
         throw new Error('Browser launch failed: Both Playwright and Puppeteer unavailable');
