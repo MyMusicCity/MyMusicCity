@@ -34,6 +34,21 @@ async function scrapeNashvilleScene() {
   try {
     console.log("🔧 Browser Installation Script Starting...");
 
+    // Explicit browser installation for production environment
+    if (process.env.RENDER || process.env.NODE_ENV === 'production') {
+      console.log('🔄 Production environment detected, ensuring browsers...');
+      
+      try {
+        // Install Puppeteer browser explicitly
+        const puppeteer = require('puppeteer');
+        console.log('📦 Installing Puppeteer browser...');
+        await puppeteer.createBrowserFetcher().download(require('puppeteer/package.json').puppeteer.chromium_revision);
+        console.log('✅ Puppeteer browser installed successfully');
+      } catch (installErr) {
+        console.log('⚠️ Puppeteer browser installation failed:', installErr.message);
+      }
+    }
+
     // Load environment from parent directory
     require('dotenv').config({ path: '../.env' });
     
@@ -120,6 +135,23 @@ async function scrapeNashvilleScene() {
         if (!browser) {
           // Try without executablePath (use bundled Chromium)
           console.log('🔄 Trying Puppeteer with bundled Chromium...');
+          
+          // First ensure browsers are downloaded
+          try {
+            console.log('📦 Checking/installing Puppeteer browser...');
+            const { executablePath } = require('puppeteer');
+            console.log('Detected Puppeteer executable:', executablePath());
+          } catch (pathErr) {
+            console.log('⚠️ Puppeteer executable not found, attempting download...');
+            try {
+              const { install } = require('puppeteer/lib/cjs/puppeteer/node/install.js');
+              await install();
+              console.log('✅ Puppeteer browser download completed');
+            } catch (installErr) {
+              console.log('❌ Puppeteer browser download failed:', installErr.message);
+            }
+          }
+          
           browser = await puppeteer.launch({
             headless: true,
             args: [

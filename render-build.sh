@@ -12,7 +12,24 @@ mkdir -p /opt/render/.cache/ms-playwright
 
 # Install browsers with specific timeout and error handling
 echo "🌐 Installing Puppeteer Chrome..."
-timeout 300 npx puppeteer browsers install chrome || echo "Puppeteer Chrome installation timed out or failed"
+echo "📍 Setting up Puppeteer environment..."
+export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
+export PUPPETEER_CACHE_DIR=/opt/render/.cache/puppeteer
+
+# Explicitly install Puppeteer's Chrome
+echo "📥 Installing Puppeteer browsers..."
+timeout 300 npx puppeteer browsers install chrome || {
+  echo "⚠️ Puppeteer Chrome install failed, trying alternative method..."
+  timeout 300 npm run postinstall 2>/dev/null || echo "Postinstall failed"
+}
+
+# Check if Puppeteer Chrome was installed
+if [ -d "/opt/render/.cache/puppeteer" ]; then
+  echo "✅ Puppeteer cache directory exists"
+  find /opt/render/.cache/puppeteer -name "chrome*" -type d | head -3
+else
+  echo "❌ Puppeteer cache directory not found"
+fi
 
 echo "🌐 Installing Playwright browsers..."
 timeout 300 npx playwright install --with-deps chromium || echo "Playwright installation failed, trying without deps..."
@@ -41,12 +58,15 @@ apt-get install -y google-chrome-stable || {
 if [ -f "/usr/bin/google-chrome-stable" ]; then
   echo "✅ Google Chrome installed at /usr/bin/google-chrome-stable"
   export PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+  echo "export PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable" >> /opt/render/.env
 elif [ -f "/usr/bin/google-chrome" ]; then
   echo "✅ Google Chrome installed at /usr/bin/google-chrome"
   export PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
+  echo "export PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome" >> /opt/render/.env
 elif [ -f "/usr/bin/chromium-browser" ]; then
   echo "✅ Chromium installed at /usr/bin/chromium-browser"
   export PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+  echo "export PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser" >> /opt/render/.env
 else
   echo "⚠️ No system Chrome found, will use bundled Chromium"
   unset PUPPETEER_EXECUTABLE_PATH
@@ -70,6 +90,16 @@ done
 
 echo "🔍 Final environment check..."
 echo "PUPPETEER_EXECUTABLE_PATH: ${PUPPETEER_EXECUTABLE_PATH:-'Not set (will use bundled)'}"
+echo "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: ${PUPPETEER_SKIP_CHROMIUM_DOWNLOAD:-'Not set'}"
+echo "PUPPETEER_CACHE_DIR: ${PUPPETEER_CACHE_DIR:-'Default'}"
 echo "NODE_ENV: ${NODE_ENV:-'Not set'}"
+
+# Ensure cache directory permissions
+echo "🔧 Setting cache permissions..."
+chmod -R 755 /opt/render/.cache/ 2>/dev/null || echo "Cache permission setting failed"
+
+# Test Puppeteer installation
+echo "🧪 Testing Puppeteer installation..."
+node -e "console.log('Puppeteer test:', require('puppeteer').executablePath());" 2>/dev/null || echo "Puppeteer path detection failed"
 
 echo "✅ Build process completed"
