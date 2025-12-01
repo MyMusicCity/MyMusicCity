@@ -1,14 +1,16 @@
 // Emergency fallback scraper for when browsers fail
 const axios = require('axios');
 const cheerio = require('cheerio');
-const { connectDB, disconnectDB } = require('../mongoose');
+const mongoose = require('../mongoose');
 const Event = require('../models/Event');
 
 console.log('🚨 Emergency fallback scraper starting (no browser required)...');
 
 async function fallbackScrape() {
   try {
-    await connectDB();
+    if (mongoose.connection.readyState === 0) {
+      await mongoose.connect(process.env.MONGO_URI, { dbName: "mymusiccity" });
+    }
     console.log('✅ Connected to MongoDB');
 
     // Enhanced presentation-ready music events for when scraping fails
@@ -124,7 +126,7 @@ async function fallbackScrape() {
   } catch (error) {
     console.error('❌ Fallback scraper error:', error);
   } finally {
-    await disconnectDB();
+    await mongoose.connection.close();
   }
 }
 
