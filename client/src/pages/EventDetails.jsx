@@ -455,8 +455,8 @@ export default function EventDetails() {
                   <button
                     className="rsvp-btn cancel"
                     style={{
-                      backgroundColor: '#f44336',
-                      color: 'white',
+                      backgroundColor: '#212121',
+                      color: '#CFAE70',
                       border: 'none',
                       padding: '10px 20px',
                       borderRadius: '6px',
@@ -465,8 +465,8 @@ export default function EventDetails() {
                       fontWeight: '600',
                       transition: 'background-color 0.2s'
                     }}
-                    onMouseOver={(e) => e.target.style.backgroundColor = '#d32f2f'}
-                    onMouseOut={(e) => e.target.style.backgroundColor = '#f44336'}
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#2c2c2c'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = '#212121'}
                     onClick={async () => {
                       if (!user) {
                         alert("Please log in to cancel RSVP.");

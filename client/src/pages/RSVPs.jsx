@@ -101,8 +101,8 @@ export default function RSVPs() {
                   position: 'absolute',
                   top: '8px',
                   left: '8px',
-                  backgroundColor: '#f44336',
-                  color: 'white',
+                  backgroundColor: '#212121',
+                  color: '#CFAE70',
                   border: 'none',
                   borderRadius: '4px',
                   padding: '4px 8px',
@@ -113,8 +113,8 @@ export default function RSVPs() {
                   transition: 'background-color 0.2s',
                   zIndex: 10
                 }}
-                onMouseOver={(e) => e.target.style.backgroundColor = '#d32f2f'}
-                onMouseOut={(e) => e.target.style.backgroundColor = '#f44336'}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#2c2c2c'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#212121'}
                 title="Cancel RSVP for this event"
               >
                 🚫 Cancel
