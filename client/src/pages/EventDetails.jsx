@@ -342,36 +342,86 @@ export default function EventDetails() {
 
             if (isAttending) {
               return (
-                <button
-                  className="rsvp-btn"
-                  onClick={async () => {
-                    if (!user) {
-                      alert("Please log in to cancel RSVP.");
-                      navigate("/login");
-                      return;
-                    }
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    backgroundColor: '#e8f5e8',
+                    border: '1px solid #4caf50',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#2e7d32'
+                  }}>
+                    ✅ You're attending this event
+                  </div>
+                  <button
+                    className="rsvp-btn cancel"
+                    style={{
+                      backgroundColor: '#f44336',
+                      color: 'white',
+                      border: 'none',
+                      padding: '10px 20px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#d32f2f'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = '#f44336'}
+                    onClick={async () => {
+                      if (!user) {
+                        alert("Please log in to cancel RSVP.");
+                        navigate("/login");
+                        return;
+                      }
 
-                    try {
-                      await deleteRsvp(evId);
-                      // Refresh attendees and counts
-                      const list = await getEventRsvps(evId);
-                      setAttendees(list || []);
-                      setEvent((prev) => ({ ...prev, rsvpCount: list?.length || 0 }));
-                      alert("RSVP cancelled");
-                    } catch (err) {
-                      console.error("Cancel RSVP failed", err);
-                      alert(err.message || "Failed to cancel RSVP");
-                    }
-                  }}
-                >
-                  Cancel RSVP
-                </button>
+                      // Add confirmation dialog
+                      if (!window.confirm("Are you sure you want to cancel your RSVP for this event?")) {
+                        return;
+                      }
+
+                      try {
+                        await deleteRsvp(evId);
+                        // Refresh attendees and counts
+                        const list = await getEventRsvps(evId);
+                        setAttendees(list || []);
+                        setEvent((prev) => ({ ...prev, rsvpCount: list?.length || 0 }));
+                        
+                        // Better success message
+                        const eventTitle = event.title?.substring(0, 30) + (event.title?.length > 30 ? '...' : '');
+                        alert(`✅ Successfully canceled your RSVP for "${eventTitle}"`);
+                      } catch (err) {
+                        console.error("Cancel RSVP failed", err);
+                        alert(`❌ Failed to cancel RSVP: ${err.message || 'Please try again'}`);
+                      }
+                    }}
+                  >
+                    🚫 Cancel RSVP
+                  </button>
+                </div>
               );
             }
 
             return (
               <button
-                className="rsvp-btn"
+                className="rsvp-btn primary"
+                style={{
+                  backgroundColor: '#4caf50',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#45a049'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#4caf50'}
                 onClick={async () => {
                   if (!user) {
                     alert("Please log in to RSVP.");
@@ -381,17 +431,18 @@ export default function EventDetails() {
 
                   try {
                     await postRsvp(evId);
-                    alert("RSVP successful!");
+                    const eventTitle = event.title?.substring(0, 30) + (event.title?.length > 30 ? '...' : '');
+                    alert(`🎉 Successfully RSVP'd to "${eventTitle}"! See you there!`);
                     const list = await getEventRsvps(evId);
                     setAttendees(list || []);
                     setEvent((prev) => ({ ...prev, rsvpCount: list?.length || 0 }));
                   } catch (err) {
                     console.error("RSVP error:", err);
-                    alert(err.message || "Failed to RSVP");
+                    alert(`❌ Failed to RSVP: ${err.message || 'Please try again'}`);
                   }
                 }}
               >
-                RSVP
+                🎵 RSVP to This Event
               </button>
             );
           })()}
