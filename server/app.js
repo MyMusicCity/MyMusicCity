@@ -1,6 +1,7 @@
 // server/app.js
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 require("dotenv").config();
 
 // Environment variable validation for Auth0
@@ -93,6 +94,98 @@ app.use("/api", commentRoutes);
 /* =======================
        EVENT ROUTES
 ======================= */
+
+// ⭐ ADMIN DATABASE DIAGNOSTICS AND CLEANUP
+app.get("/api/admin/diagnostics", (req, res) => {
+  res.sendFile(path.join(__dirname, 'diagnostics.html'));
+});
+
+app.get("/api/admin/database/diagnose", async (req, res) => {
+  try {
+    // Basic diagnostic information
+    const currentDate = new Date();
+    const twoWeeksAgo = new Date(currentDate);
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    
+    const totalEvents = await Event.countDocuments();
+    const recentEvents = await Event.countDocuments({ 
+      date: { $gte: twoWeeksAgo }
+    });
+    const oldEvents = await Event.countDocuments({ 
+      date: { $lt: twoWeeksAgo }
+    });
+    
+    // Enhanced image stats
+    const enhancedEvents = await Event.countDocuments({
+      imageSource: { $exists: true, $ne: null }
+    });
+    const scrapedImages = await Event.countDocuments({
+      imageSource: "scraped"
+    });
+    
+    // Source breakdown
+    const sourceStats = await Event.aggregate([
+      { $group: { _id: "$source", count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+    
+    // Date range
+    const dateRange = await Event.aggregate([
+      {
+        $group: {
+          _id: null,
+          minDate: { $min: "$date" },
+          maxDate: { $max: "$date" }
+        }
+      }
+    ]);
+    
+    const diagnostics = {
+      timestamp: currentDate.toISOString(),
+      cutoffDate: twoWeeksAgo.toISOString(),
+      totals: {
+        totalEvents,
+        recentEvents,
+        oldEvents,
+        enhancedEvents,
+        scrapedImages
+      },
+      sourceBreakdown: sourceStats,
+      dateRange: dateRange.length > 0 ? {
+        min: dateRange[0].minDate?.toISOString(),
+        max: dateRange[0].maxDate?.toISOString()
+      } : null,
+      status: oldEvents > 0 ? "CLEANUP_NEEDED" : "CLEAN"
+    };
+    
+    res.json(diagnostics);
+    
+  } catch (err) {
+    console.error("Database diagnostics error:", err);
+    res.status(500).json({ error: "Failed to run diagnostics" });
+  }
+});
+
+app.post("/api/admin/database/cleanup", async (req, res) => {
+  try {
+    const { cleanupOldEventsProduction } = require("./utils/productionCleanup");
+    const result = await cleanupOldEventsProduction();
+    
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      ...result
+    });
+    
+  } catch (err) {
+    console.error("Database cleanup error:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: "Failed to cleanup database",
+      details: err.message 
+    });
+  }
+});
 
 // Deployment info helper
 app.get("/api/deploy-info", (_req, res) => {

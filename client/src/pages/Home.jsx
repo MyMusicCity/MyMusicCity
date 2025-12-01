@@ -78,7 +78,7 @@ export default function Home() {
   }, []);
 
   /* -------------------------
-        LOAD EVENTS
+        LOAD CURRENT EVENTS
   ------------------------- */
   useEffect(() => {
     ping().catch(() => {});
@@ -86,13 +86,35 @@ export default function Home() {
 
     (async () => {
       try {
-        const apiEvents = await getEvents();
+        // Use the new /api/events/current endpoint for better filtering
+        const response = await fetch('/api/events/current');
+        const apiEvents = await response.json();
+        
         if (mounted && Array.isArray(apiEvents) && apiEvents.length > 0) {
           setEvents(apiEvents);
           setLoading(false);
           return;
         }
-      } catch (err) {}
+      } catch (err) {
+        // Fallback to old endpoint if new one fails
+        try {
+          const apiEvents = await getEvents();
+          if (mounted && Array.isArray(apiEvents) && apiEvents.length > 0) {
+            // Filter to recent events on client side as fallback
+            const twoWeeksAgo = new Date();
+            twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+            
+            const recentEvents = apiEvents.filter(event => {
+              const eventDate = new Date(event.date);
+              return eventDate >= twoWeeksAgo;
+            });
+            
+            setEvents(recentEvents);
+            setLoading(false);
+            return;
+          }
+        } catch (err2) {}
+      }
 
       // Fallback to mock events if backend unreachable
       setTimeout(() => {
