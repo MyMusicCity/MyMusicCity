@@ -114,6 +114,90 @@ app.get("/api/users", async (_req, res) => {
   }
 });
 
+// ⭐ GET CURRENT EVENTS (LAST 2 WEEKS) WITH ENHANCED FILTERING
+app.get("/api/events/current", async (req, res) => {
+  try {
+    // Default: Only show events from the last 2 weeks forward
+    const defaultStartDate = new Date();
+    defaultStartDate.setDate(defaultStartDate.getDate() - 14);
+    
+    let query = { 
+      date: { $gte: defaultStartDate }
+    };
+    
+    // Optional filtering parameters
+    if (req.query.genre && req.query.genre !== 'all') {
+      query.genre = req.query.genre;
+    }
+    
+    if (req.query.venue) {
+      query.location = new RegExp(req.query.venue, 'i');
+    }
+    
+    if (req.query.source) {
+      query.source = req.query.source;
+    }
+    
+    // Custom date range
+    if (req.query.startDate) {
+      query.date = { ...query.date, $gte: new Date(req.query.startDate) };
+    }
+    
+    if (req.query.endDate) {
+      query.date = { ...query.date, $lte: new Date(req.query.endDate) };
+    }
+
+    let events = await Event.find(query)
+      .populate("createdBy", "username email")
+      .lean()
+      .exec();
+
+    // Get RSVP counts
+    const rsvpCounts = await Rsvp.aggregate([
+      { $group: { _id: "$event", count: { $sum: 1 } } }
+    ]);
+    const rsvpMap = rsvpCounts.reduce((m, c) => {
+      if (c._id) m[String(c._id)] = c.count;
+      return m;
+    }, {});
+
+    // Get comment counts
+    const commentCounts = await Comment.aggregate([
+      { $group: { _id: "$event", count: { $sum: 1 } } }
+    ]);
+    const commentMap = commentCounts.reduce((m, c) => {
+      if (c._id) m[String(c._id)] = c.count;
+      return m;
+    }, {});
+
+    // Enhanced sorting: prioritize scraped images, then by date
+    events = events
+      .map((ev) => ({
+        ...ev,
+        date: ev.date ? new Date(ev.date).toISOString() : null,
+        rsvpCount: rsvpMap[String(ev._id)] || 0,
+        commentCount: commentMap[String(ev._id)] || 0,
+        hasEnhancedImage: ev.imageSource === 'scraped'
+      }))
+      .sort((a, b) => {
+        // First, prioritize events with scraped images
+        if (a.hasEnhancedImage && !b.hasEnhancedImage) return -1;
+        if (!a.hasEnhancedImage && b.hasEnhancedImage) return 1;
+        
+        // Then sort by date (ascending - soonest first)
+        const dateA = new Date(a.date || 0);
+        const dateB = new Date(b.date || 0);
+        return dateA - dateB;
+      });
+
+    res.json(events);
+
+  } catch (err) {
+    console.error("Current events API error:", err);
+    res.status(500).json({ error: "Failed to fetch current events" });
+  }
+});
+
 // ⭐ GET ALL EVENTS WITH RSVP + COMMENT COUNTS
 app.get("/api/events", async (req, res) => {
   try {
