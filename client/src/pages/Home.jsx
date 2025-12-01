@@ -108,9 +108,10 @@ export default function Home() {
 
     (async () => {
       try {
-        // Try the current events endpoint first
-        console.log('🔍 Fetching current events...');
-        const response = await fetch(`${API_BASE}/api/events/current`);
+        // Try the current events endpoint first with cache busting
+        const cacheBreaker = Date.now();
+        console.log('🔍 Fetching current events with cache breaker:', cacheBreaker);
+        const response = await fetch(`${API_BASE}/api/events/current?_cb=${cacheBreaker}`);
         const apiEvents = await response.json();
         
         console.log('📊 Current events response:', {
@@ -118,6 +119,15 @@ export default function Home() {
           eventCount: Array.isArray(apiEvents) ? apiEvents.length : 'not array',
           sample: Array.isArray(apiEvents) ? apiEvents.slice(0, 2).map(e => ({ title: e.title, date: e.date, source: e.source })) : 'no sample'
         });
+        
+        // Also check debug endpoint
+        try {
+          const debugResponse = await fetch(`${API_BASE}/api/debug/events?_cb=${cacheBreaker}`);
+          const debugData = await debugResponse.json();
+          console.log('🔧 DEBUG - Database stats:', debugData);
+        } catch (debugErr) {
+          console.log('⚠️ Debug endpoint failed:', debugErr.message);
+        }
         
         if (mounted && Array.isArray(apiEvents) && apiEvents.length > 0) {
           setEvents(apiEvents);
