@@ -72,8 +72,6 @@ async function scrapeNashvilleScene() {
     // Actually connect to MongoDB
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(process.env.MONGO_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
         serverSelectionTimeoutMS: 10000,
         socketTimeoutMS: 45000,
       });
@@ -205,12 +203,14 @@ async function scrapeNashvilleScene() {
     const page = await browser.newPage();
     
     // Set viewport based on browser type
-    if (browser.constructor.name === 'Browser') {
-      // Puppeteer
+    if (typeof browser.newPage === 'function' && !browser.contexts) {
+      // Puppeteer browser
       await page.setViewport({ width: 1280, height: 720 });
+      console.log('🔧 Using Puppeteer viewport API');
     } else {
-      // Playwright
+      // Playwright browser
       await page.setViewportSize({ width: 1280, height: 720 });
+      console.log('🔧 Using Playwright viewport API');
     }
 
     // Scrape multiple DO615 pages for comprehensive music coverage
@@ -225,10 +225,31 @@ async function scrapeNashvilleScene() {
     
     for (const url of urlsToScrape) {
       try {
-        console.log(`Navigating to ${url} ...`);
-        await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+        console.log(`🌐 Navigating to ${url} ...`);
         
-        console.log(`Extracting event data from ${url}...`);
+        // Enhanced navigation with retry logic
+        let navigationSuccess = false;
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        while (!navigationSuccess && retryCount < maxRetries) {
+          try {
+            await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+            navigationSuccess = true;
+            console.log(`✅ Successfully loaded ${url}`);
+          } catch (navErr) {
+            retryCount++;
+            console.log(`⚠️ Navigation attempt ${retryCount}/${maxRetries} failed for ${url}: ${navErr.message}`);
+            if (retryCount < maxRetries) {
+              console.log(`🔄 Retrying in 2 seconds...`);
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            } else {
+              throw navErr;
+            }
+          }
+        }
+        
+        console.log(`📊 Extracting event data from ${url}...`);
 
         const pageEvents = await page.evaluate(() => {
       const eventElements = document.querySelectorAll(".event-card");
@@ -467,6 +488,31 @@ async function scrapeNashvilleScene() {
         
       } catch (dbErr) {
         console.error("🚨 DATABASE INSERT FAILED:", dbErr);
+        console.error("📋 Error details:", {
+          name: dbErr.name,
+          message: dbErr.message,
+          code: dbErr.code
+        });
+        
+        // Try to insert events individually on bulk failure
+        if (dbErr.name === 'BulkWriteError' && newEvents.length > 1) {
+          console.log("🔄 Attempting individual event insertion as fallback...");
+          let successCount = 0;
+          
+          for (const event of newEvents) {
+            try {
+              await Event.create(event);
+              successCount++;
+              console.log(`   ✅ Individual insert success: "${event.title}"`);
+            } catch (individualErr) {
+              console.log(`   ❌ Individual insert failed: "${event.title}" - ${individualErr.message}`);
+            }
+          }
+          
+          console.log(`📊 Individual insertion results: ${successCount}/${newEvents.length} successful`);
+        } else {
+          console.error("💥 Complete database operation failure");
+        }
         
         // More detailed error analysis
         if (dbErr.code === 11000) {
