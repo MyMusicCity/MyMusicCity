@@ -18,7 +18,7 @@ function getBrowserType(browser) {
 }
 
 function getNavigationOptions(browserType) {
-  const baseOptions = { timeout: 60000 };
+  const baseOptions = { timeout: 120000 }; // Increased to 2 minutes
   
   switch (browserType) {
     case 'playwright':
@@ -35,6 +35,11 @@ async function safeNavigation(page, url, browserType, maxRetries = 3) {
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
+      // Check if page is still attached
+      if (!page || page.isClosed()) {
+        throw new Error('Page is closed or detached');
+      }
+      
       console.log(`🌐 Navigation attempt ${attempt}/${maxRetries} to ${url}`);
       await page.goto(url, navigationOptions);
       console.log(`✅ Successfully navigated to ${url}`);
@@ -42,14 +47,35 @@ async function safeNavigation(page, url, browserType, maxRetries = 3) {
     } catch (navErr) {
       console.log(`⚠️ Navigation attempt ${attempt}/${maxRetries} failed: ${navErr.message}`);
       
+      // Handle detached frame errors by recreating page
+      if (navErr.message.includes('detached') || navErr.message.includes('closed')) {
+        console.log('🔄 Frame detached, attempting to recreate page...');
+        try {
+          const browser = page.browser();
+          page = await browser.newPage();
+          
+          // Reset viewport
+          if (browserType === 'puppeteer') {
+            await page.setViewport({ width: 1280, height: 720 });
+          } else {
+            await page.setViewportSize({ width: 1280, height: 720 });
+          }
+          
+          console.log('✅ Page recreated successfully');
+        } catch (recreateErr) {
+          console.log(`❌ Page recreation failed: ${recreateErr.message}`);
+          throw navErr;
+        }
+      }
+      
       if (attempt < maxRetries) {
-        // Try fallback options on subsequent attempts
+        // Use faster fallback options
         if (attempt === 2) {
-          navigationOptions = { ...navigationOptions, waitUntil: 'domcontentloaded' };
-          console.log(`🔄 Trying fallback: domcontentloaded`);
+          navigationOptions = { ...navigationOptions, waitUntil: 'domcontentloaded', timeout: 30000 };
+          console.log(`🔄 Trying faster fallback: domcontentloaded`);
         } else if (attempt === 3) {
-          navigationOptions = { ...navigationOptions, waitUntil: 'load' };
-          console.log(`🔄 Trying final fallback: load`);
+          navigationOptions = { ...navigationOptions, waitUntil: 'load', timeout: 15000 };
+          console.log(`🔄 Trying fastest fallback: load`);
         }
         
         console.log(`🔄 Retrying in 2 seconds...`);
@@ -321,13 +347,11 @@ async function scrapeNashvilleScene() {
       }
     }
 
-    // Scrape multiple DO615 pages for comprehensive music coverage
+    // Scrape multiple DO615 pages with simplified approach for speed
     const urlsToScrape = [
       "https://do615.com/events",
-      "https://do615.com/events/music", 
-      "https://do615.com/events/concerts",
-      "https://do615.com/events/live-music"
-    ];
+      "https://do615.com/events/music"
+    ]; // Reduced URLs for faster execution
     
     const allEvents = [];
     
