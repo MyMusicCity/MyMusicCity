@@ -20,8 +20,8 @@ async function fallbackScrape() {
         location: "Nashville, TN",
         url: "https://www.visitmusiccity.com",
         source: "fallback",
-        genre: "various",
-        musicType: "live",
+        genre: "Other",
+        musicType: "concert",
         venue: "Various Venues"
       },
       {
@@ -31,7 +31,7 @@ async function fallbackScrape() {
         location: "4104 Hillsboro Pike, Nashville, TN",
         url: "https://www.bluebirdcafe.com",
         source: "fallback",
-        genre: "country",
+        genre: "Country",
         musicType: "acoustic",
         venue: "The Bluebird Cafe"
       },
@@ -42,8 +42,8 @@ async function fallbackScrape() {
         location: "Broadway, Nashville, TN",
         url: "https://www.visitmusiccity.com/music",
         source: "fallback", 
-        genre: "various",
-        musicType: "live",
+        genre: "Other",
+        musicType: "concert",
         venue: "Multiple Venues"
       }
     ];
