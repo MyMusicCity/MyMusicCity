@@ -370,12 +370,6 @@ export default function EventDetails() {
 
           {/* RSVP Section */}
           <div className="rsvp-section">
-          <button 
-            className="refresh-btn"
-            onClick={refreshAttendees}
-          >
-            🔄 Refresh Status
-          </button>
           
           {(() => {
             // Enhanced user matching for RSVP detection
