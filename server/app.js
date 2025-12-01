@@ -107,62 +107,61 @@ app.get("/api/admin/database/diagnose", async (req, res) => {
     const twoWeeksAgo = new Date(currentDate);
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
     
-    const totalEvents = await Event.countDocuments();
-    const recentEvents = await Event.countDocuments({ 
-      date: { $gte: twoWeeksAgo }
-    });
-    const oldEvents = await Event.countDocuments({ 
-      date: { $lt: twoWeeksAgo }
-    });
-    
-    // Enhanced image stats
-    const enhancedEvents = await Event.countDocuments({
-      imageSource: { $exists: true, $ne: null }
-    });
-    const scrapedImages = await Event.countDocuments({
-      imageSource: "scraped"
-    });
-    
-    // Source breakdown
-    const sourceStats = await Event.aggregate([
-      { $group: { _id: "$source", count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]);
-    
-    // Date range
-    const dateRange = await Event.aggregate([
-      {
-        $group: {
-          _id: null,
-          minDate: { $min: "$date" },
-          maxDate: { $max: "$date" }
+    // Use Promise.allSettled to handle potential errors gracefully
+    const diagnosticPromises = [
+      Event.countDocuments().catch(() => 0),
+      Event.countDocuments({ date: { $gte: twoWeeksAgo } }).catch(() => 0),
+      Event.countDocuments({ date: { $lt: twoWeeksAgo } }).catch(() => 0),
+      Event.countDocuments({ imageSource: { $exists: true, $ne: null } }).catch(() => 0),
+      Event.countDocuments({ imageSource: "scraped" }).catch(() => 0),
+      Event.aggregate([
+        { $group: { _id: "$source", count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]).catch(() => []),
+      Event.aggregate([
+        {
+          $group: {
+            _id: null,
+            minDate: { $min: "$date" },
+            maxDate: { $max: "$date" }
+          }
         }
-      }
-    ]);
+      ]).catch(() => [])
+    ];
+    
+    const [
+      totalEvents,
+      recentEvents, 
+      oldEvents,
+      enhancedEvents,
+      scrapedImages,
+      sourceStats,
+      dateRange
+    ] = await Promise.allSettled(diagnosticPromises);
     
     const diagnostics = {
       timestamp: currentDate.toISOString(),
       cutoffDate: twoWeeksAgo.toISOString(),
       totals: {
-        totalEvents,
-        recentEvents,
-        oldEvents,
-        enhancedEvents,
-        scrapedImages
+        totalEvents: totalEvents.status === 'fulfilled' ? totalEvents.value : 0,
+        recentEvents: recentEvents.status === 'fulfilled' ? recentEvents.value : 0,
+        oldEvents: oldEvents.status === 'fulfilled' ? oldEvents.value : 0,
+        enhancedEvents: enhancedEvents.status === 'fulfilled' ? enhancedEvents.value : 0,
+        scrapedImages: scrapedImages.status === 'fulfilled' ? scrapedImages.value : 0
       },
-      sourceBreakdown: sourceStats,
-      dateRange: dateRange.length > 0 ? {
-        min: dateRange[0].minDate?.toISOString(),
-        max: dateRange[0].maxDate?.toISOString()
+      sourceBreakdown: sourceStats.status === 'fulfilled' ? sourceStats.value : [],
+      dateRange: dateRange.status === 'fulfilled' && dateRange.value.length > 0 ? {
+        min: dateRange.value[0].minDate?.toISOString(),
+        max: dateRange.value[0].maxDate?.toISOString()
       } : null,
-      status: oldEvents > 0 ? "CLEANUP_NEEDED" : "CLEAN"
+      status: (oldEvents.status === 'fulfilled' && oldEvents.value > 0) ? "CLEANUP_NEEDED" : "CLEAN"
     };
     
     res.json(diagnostics);
     
   } catch (err) {
     console.error("Database diagnostics error:", err);
-    res.status(500).json({ error: "Failed to run diagnostics" });
+    res.status(500).json({ error: "Failed to run diagnostics", details: err.message });
   }
 });
 
@@ -345,21 +344,24 @@ app.get("/api/events/current", async (req, res) => {
     let events = await Event.find(query)
       .populate("createdBy", "username email")
       .lean()
-      .exec();
+      .exec()
+      .catch(() => []); // Graceful fallback
 
-    // Get RSVP counts
+    // Get RSVP counts with error handling
     const rsvpCounts = await Rsvp.aggregate([
       { $group: { _id: "$event", count: { $sum: 1 } } }
-    ]);
+    ]).catch(() => []);
+    
     const rsvpMap = rsvpCounts.reduce((m, c) => {
       if (c._id) m[String(c._id)] = c.count;
       return m;
     }, {});
 
-    // Get comment counts
+    // Get comment counts with error handling
     const commentCounts = await Comment.aggregate([
       { $group: { _id: "$event", count: { $sum: 1 } } }
-    ]);
+    ]).catch(() => []);
+    
     const commentMap = commentCounts.reduce((m, c) => {
       if (c._id) m[String(c._id)] = c.count;
       return m;
@@ -371,13 +373,14 @@ app.get("/api/events/current", async (req, res) => {
         ...ev,
         date: ev.date ? new Date(ev.date).toISOString() : null,
         rsvpCount: rsvpMap[String(ev._id)] || 0,
-        commentCount: commentMap[String(ev._id)] || 0,
-        hasEnhancedImage: ev.imageSource === 'scraped'
+        commentCount: commentMap[String(ev._id)] || 0
       }))
       .sort((a, b) => {
         // First, prioritize events with scraped images
-        if (a.hasEnhancedImage && !b.hasEnhancedImage) return -1;
-        if (!a.hasEnhancedImage && b.hasEnhancedImage) return 1;
+        const aHasScraped = a.imageSource === 'scraped';
+        const bHasScraped = b.imageSource === 'scraped';
+        if (aHasScraped && !bHasScraped) return -1;
+        if (!aHasScraped && bHasScraped) return 1;
         
         // Then sort by date (ascending - soonest first)
         const dateA = new Date(a.date || 0);
@@ -389,7 +392,7 @@ app.get("/api/events/current", async (req, res) => {
 
   } catch (err) {
     console.error("Current events API error:", err);
-    res.status(500).json({ error: "Failed to fetch current events" });
+    res.status(500).json({ error: "Failed to fetch current events", details: err.message });
   }
 });
 
