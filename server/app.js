@@ -427,11 +427,16 @@ app.get("/api/users", async (_req, res) => {
 app.get("/api/events/current", async (req, res) => {
   try {
     // For presentation: Show events from 1 month ago to 3 months forward
-    const presentationStartDate = new Date();
-    presentationStartDate.setMonth(presentationStartDate.getMonth() - 1);
+    const now = new Date();
+    const presentationStartDate = new Date(now);
+    presentationStartDate.setMonth(now.getMonth() - 1);
     
-    const presentationEndDate = new Date();
-    presentationEndDate.setMonth(presentationEndDate.getMonth() + 3);
+    const presentationEndDate = new Date(now);
+    presentationEndDate.setMonth(now.getMonth() + 3);
+    
+    console.log('📅 Date range for current events API:');
+    console.log('  Start:', presentationStartDate.toISOString());
+    console.log('  End:', presentationEndDate.toISOString());
     
     let query = { 
       date: { 
@@ -474,11 +479,31 @@ app.get("/api/events/current", async (req, res) => {
       query.date = { ...query.date, $lte: new Date(req.query.endDate) };
     }
 
+    console.log('🔍 Query being executed:', JSON.stringify(query, null, 2));
+    
     let events = await Event.find(query)
       .populate("createdBy", "username email")
       .lean()
       .exec()
       .catch(() => []); // Graceful fallback
+    
+    console.log('📊 Events found before processing:', events.length);
+    if (events.length > 0) {
+      console.log('📋 First few events:');
+      events.slice(0, 3).forEach(e => {
+        console.log(`  - ${e.title} (${e.source}, Date: ${e.date})`);
+      });
+    } else {
+      console.log('❌ No events found matching query criteria');
+      console.log('🚨 PRESENTATION MODE: Falling back to show ALL events in database');
+      // Fallback: show all events for presentation
+      events = await Event.find({})
+        .populate("createdBy", "username email")
+        .lean()
+        .exec()
+        .catch(() => []);
+      console.log('📊 Total events in database:', events.length);
+    }
 
     // Get RSVP counts with error handling
     const rsvpCounts = await Rsvp.aggregate([
