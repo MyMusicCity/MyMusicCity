@@ -169,7 +169,7 @@ export default function EventDetails() {
     const evId = event?._id || event?.id || id;
     if (!evId) return;
 
-    (async () => {
+    const loadAttendees = async () => {
       try {
         const list = await getEventRsvps(evId);
         if (mounted) {
@@ -177,19 +177,48 @@ export default function EventDetails() {
             eventId: evId,
             attendees: list?.map(r => ({
               userId: r.user?._id || r.user?.id,
+              userAuth0Id: r.user?.auth0Id,
+              userEmail: r.user?.email,
               username: r.user?.username
             })),
-            currentUserId: user?.id || user?._id
+            currentUser: user ? {
+              id: user?.id || user?._id,
+              auth0Id: user?.auth0Id || user?.sub,
+              email: user?.email
+            } : null
           });
           setAttendees(list || []);
         }
       } catch (err) {
         console.error("Failed to load attendees", err);
       }
-    })();
+    };
 
+    loadAttendees();
     return () => (mounted = false);
   }, [event && (event._id || event.id), id, user]); // Add user dependency
+
+  // Force refresh attendees when user changes or page loads
+  const refreshAttendees = async () => {
+    const evId = event?._id || event?.id || id;
+    if (!evId) return;
+    
+    try {
+      const list = await getEventRsvps(evId);
+      setAttendees(list || []);
+      console.log('🔄 Refreshed attendees:', list?.length || 0, 'attendees found');
+    } catch (err) {
+      console.error("Failed to refresh attendees", err);
+    }
+  };
+
+  // Force refresh when user becomes available
+  useEffect(() => {
+    if (user && (event?._id || event?.id || id)) {
+      console.log('👤 User loaded, force refreshing attendees...');
+      refreshAttendees();
+    }
+  }, [user?.id, user?.sub, event?._id, event?.id]);
 
   /* ===========================
         RECURSIVE COMMENT COUNT
@@ -340,41 +369,63 @@ export default function EventDetails() {
               ATTENDEES & RSVP
         ======================== */}
         <div style={{ marginTop: "1rem" }}>
+          <button 
+            onClick={refreshAttendees}
+            style={{
+              background: 'none',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              padding: '4px 8px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              marginBottom: '1rem'
+            }}
+          >
+            🔄 Refresh Status
+          </button>
+          
           {(() => {
-            // Decide whether current user is attending - handle Auth0 IDs
+            // Enhanced user matching for RSVP detection
             const currentUserId = user?.id || user?._id;
-            const currentAuth0Id = user?.auth0Id;
+            const currentAuth0Id = user?.auth0Id || user?.sub;
+            const currentEmail = user?.email;
             
-            console.log('🔍 DEBUG - RSVP Check:', {
+            console.log('🔍 DEBUG - Enhanced RSVP Check:', {
               currentUserId,
               currentAuth0Id,
+              currentEmail,
               userObject: user,
               attendeesCount: attendees.length,
               attendeeUserIds: attendees.map(r => ({
                 id: r.user?._id || r.user?.id,
-                auth0Id: r.user?.auth0Id
+                auth0Id: r.user?.auth0Id,
+                email: r.user?.email,
+                username: r.user?.username
               }))
             });
             
             const isAttending = attendees.some((r) => {
               const uid = r.user?._id || r.user?.id;
               const auth0Id = r.user?.auth0Id;
+              const email = r.user?.email;
               
               // Try multiple matching strategies
               const idMatch = uid && currentUserId && String(uid) === String(currentUserId);
               const auth0Match = auth0Id && currentAuth0Id && String(auth0Id) === String(currentAuth0Id);
               const crossMatch = (uid && currentAuth0Id && String(uid) === String(currentAuth0Id)) ||
                                 (auth0Id && currentUserId && String(auth0Id) === String(currentUserId));
+              const emailMatch = email && currentEmail && String(email).toLowerCase() === String(currentEmail).toLowerCase();
               
-              const match = idMatch || auth0Match || crossMatch;
+              const match = idMatch || auth0Match || crossMatch || emailMatch;
               console.log('🔍 Checking attendee:', {
                 attendeeUserId: uid,
                 attendeeAuth0Id: auth0Id,
+                attendeeEmail: email,
+                attendeeUsername: r.user?.username,
                 currentUserId,
                 currentAuth0Id,
-                idMatch,
-                auth0Match,
-                crossMatch,
+                currentEmail,
+                matches: { idMatch, auth0Match, crossMatch, emailMatch },
                 finalMatch: match
               });
               return match;
@@ -429,10 +480,15 @@ export default function EventDetails() {
                       }
 
                       try {
+                        console.log('🚫 Attempting to cancel RSVP for event:', evId);
                         await deleteRsvp(evId);
-                        // Refresh attendees and counts
+                        
+                        // Refresh attendees and counts immediately
+                        console.log('✅ RSVP canceled, refreshing data...');
+                        await refreshAttendees();
+                        
+                        // Update event counts
                         const list = await getEventRsvps(evId);
-                        setAttendees(list || []);
                         setEvent((prev) => ({ ...prev, rsvpCount: list?.length || 0 }));
                         
                         // Better success message
@@ -474,11 +530,18 @@ export default function EventDetails() {
                   }
 
                   try {
+                    console.log('🎵 Attempting to RSVP for event:', evId);
                     await postRsvp(evId);
+                    
+                    // Refresh attendees immediately
+                    console.log('✅ RSVP successful, refreshing data...');
+                    await refreshAttendees();
+                    
                     const eventTitle = event.title?.substring(0, 30) + (event.title?.length > 30 ? '...' : '');
                     alert(`🎉 Successfully RSVP'd to "${eventTitle}"! See you there!`);
+                    
+                    // Update event counts
                     const list = await getEventRsvps(evId);
-                    setAttendees(list || []);
                     setEvent((prev) => ({ ...prev, rsvpCount: list?.length || 0 }));
                   } catch (err) {
                     console.error("RSVP error:", err);
