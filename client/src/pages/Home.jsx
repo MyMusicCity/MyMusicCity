@@ -221,16 +221,6 @@ export default function Home() {
           onChange={(e) => setEndDate(e.target.value)}
         />
 
-        <h3>SEARCH</h3>
-        <div className="filter-search">
-          <FiSearch />
-          <input
-            type="text"
-            placeholder="Search events..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
       </aside>
 
       {/* -------------------------

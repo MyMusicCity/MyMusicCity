@@ -5,7 +5,8 @@ const mongoose = require("../mongoose");
 const Event = require("../models/Event");
 const { getEventImage } = require("../utils/eventImages");
 const { imageProcessor, imageExtractionStrategies } = require("../utils/imageProcessor");
-const { classifyEvent } = require("../utils/musicClassifier");
+// Simplified music detection - no longer using complex classifier
+// const { classifyEvent } = require("../utils/musicClassifier");
 const { launchBrowser } = require("../utils/puppeteerConfig");
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 
