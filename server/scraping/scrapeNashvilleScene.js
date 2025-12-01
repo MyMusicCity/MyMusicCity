@@ -174,20 +174,61 @@ async function scrapeDo615() {
       }
     }
 
-    // Filter for music events only and add genre classification
+    // SIMPLIFIED MUSIC FILTERING: More inclusive to ensure we don't miss music events
+    console.log(`🎵 Starting simplified music classification for ${formattedEvents.length} events...`);
+    
     const musicEvents = formattedEvents.filter(event => {
-      const classification = classifyEvent(event);
-      if (classification.isMusic) {
-        // Add music-specific fields
-        event.genre = classification.genre;
-        event.musicType = classification.musicType;
-        event.venue = classification.venue;
+      // Simple music detection - if it mentions music, instruments, venues, or performance terms
+      const text = `${event.title} ${event.description} ${event.location}`.toLowerCase();
+      
+      const isMusicEvent = (
+        // Direct music keywords
+        text.includes('music') || text.includes('concert') || text.includes('band') ||
+        text.includes('singer') || text.includes('artist') || text.includes('performance') ||
+        text.includes('live') || text.includes('show') || text.includes('acoustic') ||
+        
+        // Instruments
+        text.includes('guitar') || text.includes('piano') || text.includes('drums') ||
+        text.includes('vocal') || text.includes('singing') ||
+        
+        // Music genres
+        text.includes('rock') || text.includes('pop') || text.includes('country') ||
+        text.includes('jazz') || text.includes('blues') || text.includes('folk') ||
+        text.includes('hip-hop') || text.includes('rap') || text.includes('electronic') ||
+        
+        // Nashville music venues (known music spots)
+        text.includes('ryman') || text.includes('opry') || text.includes('bridgestone') ||
+        text.includes('ascend') || text.includes('bluebird') || text.includes('tootsie') ||
+        text.includes('honky tonk') || text.includes('broadway') || text.includes('exit/in') ||
+        text.includes('mercy lounge') || text.includes('cannery ballroom') ||
+        text.includes('marathon music works') || text.includes('basement') ||
+        
+        // Event types at music venues
+        text.includes('festival') && (text.includes('music') || text.includes('live'))
+      );
+      
+      // Exclude obvious non-music events
+      const isNonMusicEvent = (
+        text.includes('comedy') && !text.includes('music') ||
+        text.includes('standup') || text.includes('comedian') ||
+        text.includes('sports') || text.includes('football') || text.includes('basketball') ||
+        text.includes('lecture') || text.includes('seminar') || text.includes('conference') ||
+        text.includes('business meeting') || text.includes('workshop') && !text.includes('music')
+      );
+      
+      if (isMusicEvent && !isNonMusicEvent) {
+        // Add simplified music fields
+        event.genre = 'Music'; // Simplified - just mark as music
+        event.musicType = 'Live'; // Simplified - assume live music
+        console.log(`   ✅ MUSIC: ${event.title}`);
         return true;
+      } else {
+        console.log(`   ❌ NOT MUSIC: ${event.title}`);
+        return false;
       }
-      return false;
     });
 
-    console.log(`Filtered ${formattedEvents.length} total events to ${musicEvents.length} music events`);
+    console.log(`🎯 Filtered ${formattedEvents.length} total events to ${musicEvents.length} music events`);
 
     // Avoid duplicates (check by title OR url)
     const titles = musicEvents.map((e) => e.title);

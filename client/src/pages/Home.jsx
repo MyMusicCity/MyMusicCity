@@ -66,17 +66,6 @@ const MOCK_EVENTS = [
   },
 ];
 
-// Infer genre from title text
-function inferGenre(title = "") {
-  title = title.toLowerCase();
-  if (title.includes("jazz")) return "Jazz";
-  if (title.includes("country")) return "Country";
-  if (title.includes("rap") || title.includes("hip-hop") || title.includes("hip hop")) return "Hip-Hop";
-  if (title.includes("pop") || title.includes("indie")) return "Pop";
-  if (title.includes("showcase") || title.includes("local")) return "Indie";
-  return "Other";
-}
-
 export default function Home() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -85,7 +74,7 @@ export default function Home() {
   const [username, setUsername] = useState("");
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [genres, setGenres] = useState([]); // selected genres
+  // Genre filtering removed - handled server-side for music events only
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -178,10 +167,6 @@ export default function Home() {
         ?.toLowerCase()
         .includes(searchTerm.toLowerCase());
 
-      const inferred = inferGenre(e.title);
-      const matchesGenre =
-        genres.length === 0 || genres.includes(inferred);
-
       let matchesDate = true;
       if (startDate || endDate) {
         const eventDate = new Date(e.date);
@@ -189,7 +174,7 @@ export default function Home() {
         if (endDate && eventDate > new Date(endDate)) matchesDate = false;
       }
 
-      return matchesSearch && matchesGenre && matchesDate;
+      return matchesSearch && matchesDate;
     })
     .sort((a, b) =>
       sortBy === "Soonest"
@@ -202,22 +187,12 @@ export default function Home() {
     totalEvents: events.length,
     filteredEvents: filteredEvents.length,
     searchTerm,
-    selectedGenres: genres,
     dateFilters: { startDate, endDate },
     sampleEvents: events.slice(0, 3).map(e => ({
       title: e.title,
-      date: e.date,
-      genre: inferGenre(e.title)
+      date: e.date
     }))
   });
-
-  const toggleGenre = (genre) => {
-    setGenres((prev) =>
-      prev.includes(genre)
-        ? prev.filter((g) => g !== genre)
-        : [...prev, genre]
-    );
-  };
 
   return (
     <div className="home">
@@ -246,17 +221,16 @@ export default function Home() {
           onChange={(e) => setEndDate(e.target.value)}
         />
 
-        <h3>GENRES</h3>
-        {["Pop", "Rap", "Country", "Jazz"].map((genre) => (
-          <label key={genre}>
-            <input
-              type="checkbox"
-              checked={genres.includes(genre)}
-              onChange={() => toggleGenre(genre)}
-            />{" "}
-            {genre}
-          </label>
-        ))}
+        <h3>SEARCH</h3>
+        <div className="filter-search">
+          <FiSearch />
+          <input
+            type="text"
+            placeholder="Search events..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
       </aside>
 
       {/* -------------------------
