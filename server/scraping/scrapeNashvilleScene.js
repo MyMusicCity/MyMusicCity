@@ -12,6 +12,17 @@ require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
+// Production environment detection
+const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
+const SCRAPING_CONFIG = {
+  timeout: isProduction ? 120000 : 60000, // 2min for production, 1min for dev
+  waitUntil: isProduction ? 'load' : 'networkidle', // Faster load event for production
+  maxRetries: isProduction ? 3 : 1,
+  retryDelay: 5000 // 5 second delay between retries
+};
+
+console.log(`🔧 Scraping config: timeout=${SCRAPING_CONFIG.timeout}ms, waitUntil=${SCRAPING_CONFIG.waitUntil}, retries=${SCRAPING_CONFIG.maxRetries}`);
+
 if (!process.env.MONGO_URI) {
   console.error("MONGO_URI not found in .env file!");
   process.exit(1);
