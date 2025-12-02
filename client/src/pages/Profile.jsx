@@ -8,12 +8,7 @@ import "../styles.css";
 
 // Helper function for Vanderbilt-themed avatar generation (First letter only)
 const getAvatarText = (username, email, fullName) => {
-  // Try to get first letter from full name first
-  if (fullName && fullName.trim()) {
-    return fullName.trim()[0].toUpperCase();
-  }
-  
-  // Try to get first letter from username
+  // Try to get first letter from username first
   if (username && username.trim()) {
     return username.trim()[0].toUpperCase();
   }
@@ -44,10 +39,9 @@ export default function Profile() {
     email: "",
     year: "",
     major: "",
-    phone: "", // Optional phone number
   });
   
-  // Check if required fields are filled for save button (phone is optional)
+  // Check if required fields are filled for save button
   const canSave = editValues.username.trim() && editValues.email.trim() && editValues.year.trim() && editValues.major.trim();
 
   // Load user profile
@@ -73,7 +67,6 @@ export default function Profile() {
           email: userData.email || "",
           year: userData.year || "",
           major: userData.major || "",
-          phone: userData.phone || "",
         });
         
         // Only auto-enter edit mode if profile is incomplete
@@ -136,7 +129,6 @@ export default function Profile() {
         email: updatedUser.email || "",
         year: updatedUser.year || "",
         major: updatedUser.major || "",
-        phone: updatedUser.phone || "",
       });
       
       setEditMode(false); // Exit edit mode
@@ -190,7 +182,6 @@ export default function Profile() {
       email: profile?.email || "",
       year: profile?.year || "",
       major: profile?.major || "",
-      phone: profile?.phone || "",
     });
     setEditMode(false);
     setError("");
@@ -441,16 +432,7 @@ export default function Profile() {
               />
             </div>
 
-            <div className="form-field">
-              <label><strong>Phone Number:</strong> <span className="optional-label">(optional)</span></label>
-              <input
-                type="tel"
-                value={editValues.phone}
-                onChange={(e) => setEditValues({...editValues, phone: e.target.value})}
-                placeholder="e.g., (615) 123-4567"
-                disabled={saving}
-              />
-            </div>
+
 
             <div className="profile-edit-actions">
               <button 
@@ -476,7 +458,6 @@ export default function Profile() {
               <p><strong>Email:</strong> {profile?.email || "Not set"}</p>
               <p><strong>Year:</strong> {profile?.year || "Not set"}</p>
               <p><strong>Major:</strong> {profile?.major || "Not set"}</p>
-              {profile?.phone && <p><strong>Phone:</strong> {profile.phone}</p>}
             </div>
             <button className="edit-profile-btn" onClick={handleEditProfile}>
               <FaPen /> Edit Profile
