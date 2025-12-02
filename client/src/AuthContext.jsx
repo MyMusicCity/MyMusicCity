@@ -27,6 +27,8 @@ export function AuthProvider({ children }) {
   const [token, setTokenState] = useState(null);
   const [user, setUserState] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [profileUpdateInProgress, setProfileUpdateInProgress] = useState(false);
+  const [lastEmailValidation, setLastEmailValidation] = useState(null);
 
   // Check if Auth0 is properly configured
   const isAuth0Configured = !!(
@@ -47,7 +49,7 @@ export function AuthProvider({ children }) {
     setAuth0TokenProvider(getAccessTokenSilently);
   }, [getAccessTokenSilently]);
 
-  // Validate Vanderbilt email domain
+  // Validate Vanderbilt email domain with update context awareness
   const isValidVanderbiltUser = (user) => {
     // Check environment variable to enable/disable email restriction
     const enforceVanderbiltEmail = process.env.REACT_APP_ENFORCE_VANDERBILT_EMAIL === 'true';
@@ -55,7 +57,25 @@ export function AuthProvider({ children }) {
       console.log('📧 Vanderbilt email restriction disabled for testing');
       return true;
     }
-    return user?.email?.endsWith('@vanderbilt.edu');
+    
+    // Skip validation if profile update is in progress to prevent logout
+    if (profileUpdateInProgress) {
+      console.log('📧 Skipping email validation during profile update');
+      return true;
+    }
+    
+    // Add debouncing for email validation to prevent rapid re-checks
+    const currentEmail = user?.email;
+    if (lastEmailValidation === currentEmail) {
+      return true; // Already validated this email recently
+    }
+    
+    const isValid = user?.email?.endsWith('@vanderbilt.edu');
+    if (isValid) {
+      setLastEmailValidation(currentEmail);
+    }
+    
+    return isValid;
   };
 
   // Get token from Auth0
@@ -79,7 +99,8 @@ export function AuthProvider({ children }) {
           console.log('🎫 Attempting to get Auth0 access token...');
           const accessToken = await getAccessTokenSilently({
             detailedResponse: true,
-            scope: "openid profile email"
+            scope: "openid profile email",
+            timeoutInSeconds: 10 // Add timeout to prevent hanging
           });
           console.log('✅ Got Auth0 token:', {
             hasToken: !!accessToken?.access_token,
@@ -103,8 +124,20 @@ export function AuthProvider({ children }) {
             message: error.message,
             error_description: error.error_description
           });
-          // Clear token state but keep user info for display
-          setTokenState(null);
+          
+          // Categorize errors - don't logout for temporary issues
+          const isTemporaryError = error.message?.includes('timeout') || 
+                                  error.message?.includes('network') ||
+                                  error.message?.includes('rate limit');
+          
+          if (isTemporaryError) {
+            console.log('🔄 Temporary token error, keeping user logged in');
+            // Keep existing token and user state for temporary issues
+          } else {
+            console.log('💥 Permanent token error, clearing state');
+            setTokenState(null);
+            // Don't clear user state immediately - let them retry
+          }
         }
       } else {
         console.log('🔄 Auth0 not authenticated, checking localStorage...');
@@ -147,6 +180,8 @@ export function AuthProvider({ children }) {
     auth0Logout({ returnTo: window.location.origin });
     setTokenState(null);
     setUserState(null);
+    setProfileUpdateInProgress(false);
+    setLastEmailValidation(null);
   };
 
   const login = () => {
@@ -160,6 +195,17 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Helper functions for profile update context
+  const markProfileUpdateStart = () => {
+    console.log('📝 Profile update started - preventing logout');
+    setProfileUpdateInProgress(true);
+  };
+
+  const markProfileUpdateEnd = () => {
+    console.log('📝 Profile update completed');
+    setProfileUpdateInProgress(false);
+  };
+
   return (
     <AuthContext.Provider value={{ 
       token, 
@@ -168,6 +214,8 @@ export function AuthProvider({ children }) {
       setUser: setUserState, 
       logout,
       login,
+      markProfileUpdateStart,
+      markProfileUpdateEnd,
       isLoading,
       isAuthenticated: (auth0IsAuthenticated && isValidVanderbiltUser(auth0User)) || (!!user && !!token),
       auth0Error: auth0Error?.message,

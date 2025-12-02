@@ -28,7 +28,7 @@ const getAvatarText = (username, email, fullName) => {
 
 export default function Profile() {
   const navigate = useNavigate();
-  const { user: contextUser, logout } = useContext(AuthContext);
+  const { user: contextUser, logout, markProfileUpdateStart, markProfileUpdateEnd } = useContext(AuthContext);
   const { user: auth0User, getAccessTokenSilently } = useAuth0();
   
   const [profile, setProfile] = useState(null);
@@ -120,11 +120,23 @@ export default function Profile() {
     try {
       setSaving(true);
       setError("");
+      
+      // Mark profile update start to prevent logout
+      if (markProfileUpdateStart) {
+        markProfileUpdateStart();
+      }
+      
       const updatedUser = await updateUserProfile(editValues);
       setProfile(updatedUser);
       setEditMode(false); // Exit edit mode
       setError("");
-      // Don't reload page, just update state
+      
+      console.log('✅ Profile updated successfully:', {
+        username: updatedUser.username,
+        email: updatedUser.email,
+        profileComplete: updatedUser.profileComplete
+      });
+      
     } catch (err) {
       console.error("Failed to update profile:", err);
       if (err.message.includes("USERNAME_TAKEN")) {
@@ -136,6 +148,12 @@ export default function Profile() {
       }
     } finally {
       setSaving(false);
+      // Mark profile update end after a delay to allow Auth0 to process
+      setTimeout(() => {
+        if (markProfileUpdateEnd) {
+          markProfileUpdateEnd();
+        }
+      }, 2000);
     }
   };
 

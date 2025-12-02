@@ -372,50 +372,44 @@ export default function EventDetails() {
           <div className="rsvp-section">
           
           {(() => {
-            // Enhanced user matching for RSVP detection
+            // Simplified user matching for RSVP detection
             const currentUserId = user?.id || user?._id;
             const currentAuth0Id = user?.auth0Id || user?.sub;
             const currentEmail = user?.email;
             
-            console.log('🔍 DEBUG - Enhanced RSVP Check:', {
+            console.log('🔍 RSVP Detection Debug:', {
               currentUserId,
               currentAuth0Id,
               currentEmail,
-              userObject: user,
-              attendeesCount: attendees.length,
-              attendeeUserIds: attendees.map(r => ({
-                id: r.user?._id || r.user?.id,
-                auth0Id: r.user?.auth0Id,
-                email: r.user?.email,
-                username: r.user?.username
-              }))
+              attendeesCount: attendees.length
             });
             
             const isAttending = attendees.some((r) => {
+              if (!r.user) return false;
+              
               const uid = r.user?._id || r.user?.id;
               const auth0Id = r.user?.auth0Id;
               const email = r.user?.email;
               
-              // Try multiple matching strategies
-              const idMatch = uid && currentUserId && String(uid) === String(currentUserId);
-              const auth0Match = auth0Id && currentAuth0Id && String(auth0Id) === String(currentAuth0Id);
-              const crossMatch = (uid && currentAuth0Id && String(uid) === String(currentAuth0Id)) ||
-                                (auth0Id && currentUserId && String(auth0Id) === String(currentUserId));
-              const emailMatch = email && currentEmail && String(email).toLowerCase() === String(currentEmail).toLowerCase();
+              // Primary match: Auth0 ID (most reliable for Auth0 users)
+              if (currentAuth0Id && auth0Id && String(auth0Id) === String(currentAuth0Id)) {
+                console.log('✅ Auth0 ID match found:', { currentAuth0Id, auth0Id });
+                return true;
+              }
               
-              const match = idMatch || auth0Match || crossMatch || emailMatch;
-              console.log('🔍 Checking attendee:', {
-                attendeeUserId: uid,
-                attendeeAuth0Id: auth0Id,
-                attendeeEmail: email,
-                attendeeUsername: r.user?.username,
-                currentUserId,
-                currentAuth0Id,
-                currentEmail,
-                matches: { idMatch, auth0Match, crossMatch, emailMatch },
-                finalMatch: match
-              });
-              return match;
+              // Secondary match: MongoDB ObjectId
+              if (currentUserId && uid && String(uid) === String(currentUserId)) {
+                console.log('✅ MongoDB ID match found:', { currentUserId, uid });
+                return true;
+              }
+              
+              // Tertiary match: Email (fallback)
+              if (currentEmail && email && String(email).toLowerCase() === String(currentEmail).toLowerCase()) {
+                console.log('✅ Email match found:', { currentEmail, email });
+                return true;
+              }
+              
+              return false;
             });
 
             console.log('🔍 Final isAttending result:', isAttending);

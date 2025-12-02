@@ -211,10 +211,22 @@ module.exports = function auth(req, res, next) {
             isProfileComplete: isProfileComplete
           };
           
-          console.log(`Auth0 user authenticated: ${mongoUser.username} (Profile complete: ${isProfileComplete})`);
+          console.log(`✅ Auth0 user authenticated successfully:`, {
+            username: mongoUser.username,
+            email: userEmail,
+            mongoId: mongoUser._id,
+            auth0Id: decoded.sub,
+            profileComplete: isProfileComplete,
+            reqUserId: req.user.id
+          });
           return next();
         } catch (userError) {
-          console.error('Failed to find/create Auth0 user:', userError);
+          console.error('❌ Failed to find/create Auth0 user:', {
+            error: userError.message,
+            auth0Sub: decoded.sub,
+            email: userEmail,
+            stack: userError.stack?.substring(0, 200)
+          });
           
           // Handle specific user creation errors
           if (userError.message.includes('ACCOUNT_CONFLICT')) {
