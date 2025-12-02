@@ -67,12 +67,10 @@ MyMusicCity/
 
 ## 🔧 Installation & Setup
 
-### Prerequisites
-- Node.js (v18 or higher)
-- MongoDB account
-- Auth0 account
+For detailed installation instructions, see [INSTALLATION.md](INSTALLATION.md)
 
-### Local Development
+### Quick Start
+
 1. **Clone the repository**
    ```bash
    git clone https://github.com/MyMusicCity/MyMusicCity.git
@@ -100,14 +98,16 @@ MyMusicCity/
    cd client && npm start
    ```
 
-## 🌐 Deployment
+## 🚀 Deployment
+
+For production deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md)
 
 ### Production URLs
 - **Frontend**: https://my-music-city.vercel.app
 - **Backend API**: https://mymusiccity.onrender.com
 
 ### Environment Variables
-See `docs/` folder for detailed environment configuration guides.
+See `INSTALLATION.md` and `DEPLOYMENT.md` for complete environment configuration guides.
 
 ## 📖 API Documentation
 
