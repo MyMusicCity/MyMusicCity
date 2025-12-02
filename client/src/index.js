@@ -10,15 +10,12 @@ import "./styles.css"; // optional if you have this file
 const domain = process.env.REACT_APP_AUTH0_DOMAIN;
 const clientId = process.env.REACT_APP_AUTH0_CLIENT_ID;
 const audience = process.env.REACT_APP_AUTH0_AUDIENCE;
-const connection = process.env.REACT_APP_AUTH0_CONNECTION || "Username-Password-Authentication";
 
 // Debug Auth0 configuration
 console.log('🔧 Auth0 Configuration Check:');
 console.log('- Domain:', domain || 'NOT SET');
 console.log('- Client ID:', clientId || 'NOT SET');
 console.log('- Audience:', audience || 'NOT SET');
-console.log('- Connection:', connection);
-console.log('- Skip Email Verification:', process.env.REACT_APP_AUTH0_SKIP_EMAIL_VERIFICATION);
 
 // Validate Auth0 configuration
 if (!domain || !clientId || domain.includes('your-auth0-domain') || clientId.includes('your-auth0-client-id')) {
@@ -58,14 +55,8 @@ root.render(
         authorizationParams={{
           redirect_uri: window.location.origin,
           ...(audience && { audience: audience }),
-          scope: "openid profile email",
-          // FORCE BYPASS EMAIL VERIFICATION
-          connection: connection,
-          mode: "signUp"
+          scope: "openid profile email"
         }}
-        skipRedirectCallback={false}
-        cacheLocation="localstorage"
-        useRefreshTokens={true}
         onRedirectCallback={(appState) => {
           console.log('🔐 Auth0 redirect callback:', appState);
         }}
