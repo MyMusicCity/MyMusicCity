@@ -34,6 +34,7 @@ export default function Profile() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editMode, setEditMode] = useState(false); // Add edit mode toggle
@@ -65,7 +66,6 @@ export default function Profile() {
         
         // Set edit mode based on profile completeness
         const isComplete = userData.username && userData.email && userData.year && userData.major;
-        setEditMode(!isComplete);
         
         // Initialize edit values with current profile data
         setEditValues({
@@ -75,27 +75,21 @@ export default function Profile() {
           major: userData.major || "",
           phone: userData.phone || "",
         });
+        
+        // Only auto-enter edit mode if profile is incomplete
+        setEditMode(!isComplete);
+        
+        if (!isComplete) {
+          setError("Please complete your profile to RSVP to events.");
+        }
+        
       } catch (err) {
         console.error("Failed to load profile:", err);
         
-        // Provide more specific error messages and auto-suggestions
+        // Simplified error handling
         if (err.message.includes("User profile not found")) {
-          setError("We're setting up your profile. Please try refreshing the page, or sign out and back in if this continues.");
-        } else if (err.message.includes("INVALID_TOKEN_CLAIMS") || err.code === 'INVALID_TOKEN_CLAIMS') {
-          setError("Authentication issue detected. You may need to delete your account to resolve this.");
-          // Auto-suggest account deletion after a delay
-          setTimeout(() => {
-            if (window.confirm('Profile loading failed due to invalid authentication. Would you like to delete your account to resolve this issue?')) {
-              handleDeleteAccount();
-            }
-          }, 3000);
-        } else if (err.code === 'ACCOUNT_CONFLICT') {
-          setError("Account conflict detected. Delete your account below to resolve this.");
+          setError("Profile not found. Please try refreshing the page.");
         } else if (err.status === 401) {
-          setError("Authentication failed. You may need to delete your account to resolve this.");
-        } else if (err.message.includes("Unable to create user profile")) {
-          setError("There was an issue creating your profile. This may be due to a data conflict. Please try deleting your account below, or contact support with this exact message: " + err.message);
-        } else if (err.message.includes("Authentication required")) {
           setError("Please sign in again to access your profile.");
           setTimeout(() => navigate("/login"), 2000);
         } else if (err.message.includes("Username conflict") || err.message.includes("Email already exists") || err.message.includes("Account conflict")) {
@@ -120,21 +114,43 @@ export default function Profile() {
     try {
       setSaving(true);
       setError("");
+      setSuccess(""); // Clear any previous success message
       
       // Mark profile update start to prevent logout
       if (markProfileUpdateStart) {
         markProfileUpdateStart();
       }
       
-      const updatedUser = await updateUserProfile(editValues);
+      const response = await updateUserProfile(editValues);
+      
+      // Extract user data from the response structure
+      const updatedUser = response.user || response;
+      const message = response.message || "Profile updated successfully";
+      
+      // Update profile state with the latest data from server
       setProfile(updatedUser);
+      
+      // Update edit values to match what was actually saved
+      setEditValues({
+        username: updatedUser.username || "",
+        email: updatedUser.email || "",
+        year: updatedUser.year || "",
+        major: updatedUser.major || "",
+        phone: updatedUser.phone || "",
+      });
+      
       setEditMode(false); // Exit edit mode
       setError("");
+      
+      // Show success message
+      setSuccess(message);
+      setTimeout(() => setSuccess(""), 3000);
       
       console.log('✅ Profile updated successfully:', {
         username: updatedUser.username,
         email: updatedUser.email,
-        profileComplete: updatedUser.profileComplete
+        profileComplete: response.profileComplete || (updatedUser.year && updatedUser.major),
+        justCompleted: response.justCompleted
       });
       
     } catch (err) {
@@ -148,12 +164,12 @@ export default function Profile() {
       }
     } finally {
       setSaving(false);
-      // Mark profile update end after a delay to allow Auth0 to process
+      // Mark profile update end after a shorter delay
       setTimeout(() => {
         if (markProfileUpdateEnd) {
           markProfileUpdateEnd();
         }
-      }, 2000);
+      }, 1000);
     }
   };
 
@@ -465,6 +481,12 @@ export default function Profile() {
             <button className="edit-profile-btn" onClick={handleEditProfile}>
               <FaPen /> Edit Profile
             </button>
+          </div>
+        )}
+
+        {success && (
+          <div className="success-message">
+            ✅ {success}
           </div>
         )}
 

@@ -1180,6 +1180,19 @@ select:focus {
   gap: 0.7rem;
 }
 
+.success-message {
+  background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+  border: 2px solid #212121;
+  border-radius: 12px;
+  padding: 1.2rem;
+  margin: 1rem 0;
+  color: #155724;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
 .loading-spinner {
   color: #CFAE70;
   font-size: 1.1rem;
