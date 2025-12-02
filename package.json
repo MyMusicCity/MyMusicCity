@@ -4,7 +4,7 @@
   "description": "",
   "main": "server/index.js",
   "scripts": {
-    "start": "node server/index.js",
+    "start": "node server/scripts/install-browsers.js && node server/index.js",
     "dev": "nodemon server/index.js",
     "seed": "node seed.js",
     "scrape": "node server/scraping/scrapeNashvilleScene.js",
@@ -29,7 +29,9 @@
     "jsonwebtoken": "^9.0.2",
     "jwks-rsa": "^3.0.0",
     "mongodb": "^6.20.0",
-    "mongoose": "^8.19.0",
+    "mongoose": "^8.19.2",
+    "nodemailer": "^7.0.11",
+    "playwright": "^1.47.0",
     "puppeteer": "^24.25.0"
   },
   "jest": {
