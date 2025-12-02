@@ -2,6 +2,7 @@
 require("dotenv").config();
 const mongoose = require("./mongoose");
 const app = require("./app");
+const { startCleanupJob } = require("./utils/cleanupJob");
 
 const PORT = process.env.PORT || 5050;
 const MONGO_URI = process.env.MONGO_URI;
@@ -15,6 +16,10 @@ mongoose
   .connect(MONGO_URI, { dbName: "mymusiccity" })
   .then(() => {
     console.log("✅ Connected to MongoDB Atlas");
+    
+    // Start background cleanup job for user creation health
+    startCleanupJob();
+    
     const HOST = process.env.HOST || "0.0.0.0";
     // Only start listening when this module is the entrypoint
     if (require.main === module) {

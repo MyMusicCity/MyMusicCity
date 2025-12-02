@@ -40,6 +40,7 @@ const Comment = require("./models/Comment"); // ⭐ REQUIRED for comment counts
 const authRoutes = require("./routes/auth");
 const updateImagesRoutes = require("./routes/updateImages");
 const presentationRoutes = require("./routes/presentation");
+const adminRoutes = require("./routes/admin");
 const auth = require("./middleware/auth");
 const { body, param, validationResult } = require("express-validator");
 const commentRoutes = require("./routes/comments");
@@ -88,6 +89,7 @@ app.use("/api", authRoutes);
 
 // ===== Admin Routes =====
 app.use("/api/admin", updateImagesRoutes);
+app.use("/api/admin", adminRoutes);
 
 // ===== Comment Routes =====
 app.use("/api", commentRoutes);

@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { findOrCreateAuth0UserAtomic } = require("../utils/atomicUserCreation");
 
 // Try to load jwks-rsa for Auth0 support
 let jwksClient = null;
@@ -32,124 +33,6 @@ function getKey(header, callback) {
     const signingKey = key.publicKey || key.rsaPublicKey;
     callback(null, signingKey);
   });
-}
-
-// Find or create User record for Auth0 users with atomic operations
-async function findOrCreateAuth0User(auth0Id, email) {
-  const mongoose = require('mongoose');
-  
-  try {
-    console.log(`Finding/creating user for auth0Id: ${auth0Id}, email: ${email}`);
-    
-    // Validate required parameters
-    if (!auth0Id) {
-      throw new Error('Auth0 ID is required for user creation');
-    }
-    if (!email) {
-      throw new Error('Email is required for user creation');
-    }
-    
-    // First try to find existing user by auth0Id (most reliable)
-    let user = await User.findOne({ auth0Id });
-    if (user) {
-      console.log('Found existing user by auth0Id:', user.username);
-      return user;
-    }
-
-    // Start a transaction for atomic user creation
-    const session = await mongoose.startSession();
-    
-    try {
-      const result = await session.withTransaction(async () => {
-        // Check again within transaction to prevent race conditions
-        let existingUser = await User.findOne({ auth0Id }).session(session);
-        if (existingUser) {
-          console.log('User created by another process, returning existing user');
-          return existingUser;
-        }
-
-        // Check for existing user by email (for migration)
-        existingUser = await User.findOne({ email: email.toLowerCase().trim() }).session(session);
-        if (existingUser) {
-          if (!existingUser.auth0Id) {
-            console.log('Found existing user by email, adding auth0Id:', existingUser.username);
-            // Update existing user with auth0Id atomically
-            existingUser.auth0Id = auth0Id;
-            await existingUser.save({ session });
-            console.log('Successfully linked existing account with Auth0');
-            return existingUser;
-          } else if (existingUser.auth0Id !== auth0Id) {
-            // Account conflict: same email but different auth0Id
-            console.log('⚠️ Account conflict detected - email exists with different auth0Id');
-            throw new Error('ACCOUNT_CONFLICT: This email is already associated with a different Auth0 account. Please use account cleanup or contact support.');
-          }
-        }
-
-        // Create simple temporary username - user will fill in their own
-        let finalUsername = 'tempuser';
-        let counter = 1;
-        const maxAttempts = 10;
-        
-        while (counter <= maxAttempts) {
-          const conflictUser = await User.findOne({ username: finalUsername }).session(session);
-          if (!conflictUser) {
-            break;
-          }
-          finalUsername = `tempuser${counter}`;
-          counter++;
-        }
-        
-        // Fallback to timestamp if still conflicts
-        if (counter > maxAttempts) {
-          finalUsername = `tempuser_${Date.now().toString().slice(-6)}`;
-        }
-
-        console.log(`Creating new user with username: ${finalUsername}`);
-        
-        // Create new user with blank fields for user to fill
-        const newUserData = {
-          username: finalUsername,
-          email: userEmail || email.toLowerCase().trim() || `${auth0Id}@temp.local`, // Use actual email or fallback
-          password: 'auth0-user', // Placeholder for Auth0 users
-          auth0Id: auth0Id,
-          year: null,
-          major: null,
-          createdAt: new Date(),
-          isProfileComplete: false
-        };
-
-        const newUser = new User(newUserData);
-        await newUser.save({ session });
-        console.log('Successfully created new Auth0 user:', finalUsername);
-        return newUser;
-      });
-      
-      return result;
-      
-    } finally {
-      await session.endSession();
-    }
-    
-  } catch (error) {
-    console.error('Error in findOrCreateAuth0User:', error);
-    
-    // Handle specific error types
-    if (error.message.includes('ACCOUNT_CONFLICT')) {
-      throw error; // Re-throw account conflict errors with original message
-    }
-    
-    if (error.code === 11000) {
-      if (error.message.includes('username')) {
-        throw new Error('USERNAME_CONFLICT: Username generation failed due to conflicts. Please try again.');
-      } else if (error.message.includes('email')) {
-        throw new Error('EMAIL_CONFLICT: Email already exists with different Auth0 ID. Please use account cleanup.');
-      }
-      throw new Error('DUPLICATE_DATA: Data conflict during user creation. Please try again.');
-    }
-    
-    // Generic fallback error
-    throw new Error(`USER_CREATION_FAILED: ${error.message}`);
-  }
 }
 
 module.exports = function auth(req, res, next) {
@@ -188,19 +71,31 @@ module.exports = function auth(req, res, next) {
             });
           }
           
-          // Email might not always be present, use a fallback
-          const userEmail = decoded.email || decoded['https://myapp/email'] || `${decoded.sub}@temp.local`;
+          // Email validation with better fallback handling
+          let userEmail = decoded.email || decoded['https://myapp/email'];
+          
+          // Validate email format if present
+          if (userEmail && (!userEmail.includes('@') || userEmail.length < 5)) {
+            console.warn('⚠️ Invalid email format in token, using Auth0 ID fallback');
+            userEmail = `${decoded.sub.replace(/[^a-zA-Z0-9]/g, '_')}@auth0.temp`;
+          }
+          
+          // Final fallback if no valid email
+          if (!userEmail) {
+            userEmail = `${decoded.sub.replace(/[^a-zA-Z0-9]/g, '_')}@auth0.temp`;
+          }
+          
           console.log('✅ Token claims validated:', {
             sub: decoded.sub,
             email: userEmail,
             hasEmail: !!decoded.email
           });
           
-          // Find or create MongoDB User record for Auth0 user
-          const mongoUser = await findOrCreateAuth0User(decoded.sub, userEmail);
+          // Use new atomic user creation system
+          const mongoUser = await findOrCreateAuth0UserAtomic(decoded.sub, userEmail);
           
           // Check if profile is complete
-          const isProfileComplete = mongoUser.year && mongoUser.major;
+          const isProfileComplete = mongoUser.year && mongoUser.major && mongoUser.accountState === 'complete';
           
           req.user = { 
             id: mongoUser._id,
@@ -217,6 +112,7 @@ module.exports = function auth(req, res, next) {
             mongoId: mongoUser._id,
             auth0Id: decoded.sub,
             profileComplete: isProfileComplete,
+            accountState: mongoUser.accountState,
             reqUserId: req.user.id
           });
           return next();
@@ -228,28 +124,37 @@ module.exports = function auth(req, res, next) {
             stack: userError.stack?.substring(0, 200)
           });
           
-          // Handle specific user creation errors
+          // Enhanced error handling for atomic user creation
           if (userError.message.includes('ACCOUNT_CONFLICT')) {
             return res.status(409).json({ 
               error: "ACCOUNT_CONFLICT",
-              message: "Email conflict with existing account",
+              message: "Email conflict with existing account. Please use account cleanup or contact support.",
               action: "cleanup",
-              details: userError.message
+              details: userError.message.includes('development') ? userError.message : undefined
             });
           }
           
-          if (userError.message.includes('USERNAME_CONFLICT') || userError.message.includes('EMAIL_CONFLICT')) {
-            return res.status(409).json({ 
-              error: "DATA_CONFLICT",
-              message: "User data conflict during account creation",
+          if (userError.message.includes('INVALID_')) {
+            return res.status(400).json({
+              error: "INVALID_USER_DATA", 
+              message: "Invalid user information provided",
               action: "retry",
               details: process.env.NODE_ENV === 'development' ? userError.message : undefined
             });
           }
           
+          if (userError.message.includes('USER_CREATION_FAILED')) {
+            return res.status(503).json({ 
+              error: "USER_CREATION_FAILED",
+              message: "Temporary issue creating user account. Please try again.",
+              action: "retry",
+              details: process.env.NODE_ENV === 'development' ? userError.message : 'Please contact support if this persists'
+            });
+          }
+          
           return res.status(500).json({ 
-            error: "USER_CREATION_FAILED",
-            message: "Failed to create or retrieve user account",
+            error: "AUTHENTICATION_ERROR",
+            message: "Failed to authenticate user",
             details: process.env.NODE_ENV === 'development' ? userError.message : 'Please contact support if this persists'
           });
         }
