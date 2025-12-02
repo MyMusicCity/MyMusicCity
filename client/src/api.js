@@ -6,6 +6,16 @@ const API_BASE = (
   process.env.REACT_APP_API_URL || (typeof window !== "undefined" && window.location && window.location.origin) || ""
 ).replace(/\/$/, "");
 
+// Export API_BASE for use in other components
+export { API_BASE };
+
+// Helper to get Auth0 token from the current context
+let getAccessTokenSilently = null;
+
+export function setAuth0TokenProvider(tokenProvider) {
+  getAccessTokenSilently = tokenProvider;
+}
+
 // Small helper to avoid fetch hanging indefinitely in environments that return
 // an HTML auth page or otherwise stall. Returns a Response or throws on abort.
 async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
@@ -25,6 +35,73 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
     }
     throw err;
   }
+}
+
+// Helper to get authorization headers with Auth0 token
+async function getAuthHeaders() {
+  const headers = { "Content-Type": "application/json" };
+  
+  console.log('🎫 Getting auth headers...');
+  
+  // Try Auth0 token first
+  if (getAccessTokenSilently) {
+    try {
+      console.log('🔐 Attempting Auth0 token...');
+      const token = await getAccessTokenSilently();
+      if (token) {
+        console.log('✅ Got Auth0 token, length:', token.length);
+        headers.Authorization = `Bearer ${token}`;
+        return headers; // Return immediately with Auth0 token
+      } else {
+        console.log('⚠️ Auth0 token was empty');
+      }
+    } catch (error) {
+      console.error('❌ Auth0 token failed:', error);
+      console.error('Auth0 error details:', {
+        name: error.name,
+        message: error.message,
+        error_description: error.error_description
+      });
+      // For public endpoints, don't throw error - allow the request to proceed without auth
+      console.log('⚠️ Proceeding without Auth0 token for public endpoint');
+    }
+  } else {
+    console.log('⚠️ No Auth0 token provider available');
+  }
+  
+  // Only use localStorage token if Auth0 is not configured
+  if (!getAccessTokenSilently && !headers.Authorization) {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  
+  return headers;
+}
+
+// Helper to handle API errors consistently
+async function handleApiError(response, context = 'API request') {
+  let errorData = null;
+  try {
+    errorData = await response.json();
+  } catch (parseError) {
+    // If response is not JSON, create a generic error
+    errorData = { 
+      error: 'RESPONSE_PARSE_ERROR', 
+      message: `${context} failed with status ${response.status}` 
+    };
+  }
+  
+  // Create comprehensive error with status and context
+  const error = new Error(errorData?.message || errorData?.error || `${context} failed`);
+  error.status = response.status;
+  error.code = errorData?.error;
+  error.action = errorData?.action;
+  error.details = errorData?.details;
+  error.response = errorData;
+  
+  throw error;
 }
 
 // --- Safe health check (won't break UI) ---
@@ -56,10 +133,7 @@ export async function getEventById(id) {
 
 export async function postRsvp(eventId, status = "going") {
   if (!API_BASE) throw new Error("No API base URL configured");
-  // Prefer Authorization header with JWT when available (AuthContext stores token in localStorage)
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  const headers = { "Content-Type": "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const headers = await getAuthHeaders();
 
   const res = await fetchWithTimeout(`${API_BASE}/api/rsvps`, {
     method: "POST",
@@ -67,16 +141,12 @@ export async function postRsvp(eventId, status = "going") {
     credentials: "include",
     body: JSON.stringify({ eventId, status }),
   });
-  // Parse JSON and surface server-provided error messages when present
-  let payload;
-  try {
-    payload = await res.json();
-  } catch (e) {
-    if (!res.ok) throw new Error(`RSVP failed: status ${res.status}`);
-    return {};
+  
+  if (!res.ok) {
+    await handleApiError(res, 'RSVP creation');
   }
-  if (!res.ok) throw new Error(payload?.error || payload?.message || `RSVP failed: ${res.status}`);
-  return payload;
+  
+  return res.json();
 }
 
 export async function getUserRsvps(userId) {
@@ -87,10 +157,8 @@ export async function getUserRsvps(userId) {
     if (!res.ok) throw new Error(`User RSVPs failed: ${res.status}`);
     return res.json();
   }
-  // If no userId provided, prefer the authenticated /api/me/rsvps endpoint using stored token
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  const headers = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
+  // If no userId provided, prefer the authenticated /api/me/rsvps endpoint using Auth0 token
+  const headers = await getAuthHeaders();
   const res = await fetchWithTimeout(`${API_BASE}/api/me/rsvps`, { credentials: "include", headers });
   if (!res.ok) throw new Error(`User RSVPs (me) failed: ${res.status}`);
   return res.json();
@@ -109,9 +177,7 @@ export async function getEventRsvps(eventId) {
 
 export async function deleteRsvp(eventId) {
   if (!API_BASE) throw new Error("No API base URL configured");
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  const headers = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const headers = await getAuthHeaders();
 
   const res = await fetchWithTimeout(`${API_BASE}/api/rsvps/event/${eventId}`, {
     method: "DELETE",
@@ -137,7 +203,6 @@ export async function getUserById(id) {
 }
 
 export async function signupUser(username, email, password, year, major) {
-  console.log("API_BASE is", API_BASE);
   const res = await fetchWithTimeout(`${API_BASE}/api/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -187,4 +252,116 @@ export async function loginUser(email, password) {
   }
   return payload || {};
 }
+
+// --- COMMENTS API ---
+
+export async function getComments(eventId) {
+  const res = await fetch(`${API_BASE}/api/comments/${eventId}`);
+  if (!res.ok) throw new Error("Failed to load comments");
+  return res.json();
+}
+
+export async function postComment(eventId, text) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/api/comments`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body: JSON.stringify({ eventId, text }),
+  });
+  if (!res.ok) throw new Error("Failed to post comment");
+  return res.json();
+}
+
+export async function deleteComment(commentId) {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/api/comments/${commentId}`, {
+    method: "DELETE",
+    headers,
+    credentials: "include"
+  });
+  if (!res.ok) throw new Error("Failed to delete comment");
+  return res.json();
+}
+
+export async function postReply(commentId, eventId, text) {
+  // Keep URL consistent with other API endpoints (mounted under /api)
+  // and include the Authorization header so auth middleware can validate the user.
+  const headers = await getAuthHeaders();
+
+  const res = await fetch(`${API_BASE}/api/comments/${commentId}/reply`, {
+    method: "POST",
+    credentials: "include",
+    headers,
+    body: JSON.stringify({ eventId, text }),
+  });
+
+  let payload = {};
+  try {
+    payload = await res.json();
+  } catch (e) {
+    if (!res.ok) throw new Error(`Reply failed: status ${res.status}`);
+  }
+
+  if (!res.ok) throw new Error(payload?.error || payload?.message || "Failed to reply");
+
+  return payload;
+}
+
+// --- Profile management functions ---
+export async function getCurrentUser() {
+  if (!API_BASE) throw new Error("No API base URL configured");
+  const headers = await getAuthHeaders();
+  
+  const res = await fetchWithTimeout(`${API_BASE}/api/me`, {
+    method: "GET",
+    headers,
+    credentials: "include",
+  });
+  
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData?.error || `Failed to fetch user: ${res.status}`);
+  }
+  
+  return res.json();
+}
+
+export async function updateUserProfile(profileData) {
+  if (!API_BASE) throw new Error("No API base URL configured");
+  const headers = await getAuthHeaders();
+  
+  const res = await fetchWithTimeout(`${API_BASE}/api/me/profile`, {
+    method: "PUT",
+    headers,
+    credentials: "include",
+    body: JSON.stringify(profileData),
+  });
+  
+  if (!res.ok) {
+    await handleApiError(res, 'Profile update');
+  }
+  
+  return res.json();
+}
+
+// Delete current user account
+export async function deleteAccount() {
+  if (!API_BASE) throw new Error("No API base URL configured");
+  const headers = await getAuthHeaders();
+  
+  const res = await fetchWithTimeout(`${API_BASE}/api/me/account`, {
+    method: "DELETE",
+    headers,
+    credentials: "include",
+  });
+  
+  if (!res.ok) {
+    await handleApiError(res, 'Account deletion');
+  }
+  
+  return res.json();
+}
+
+
 

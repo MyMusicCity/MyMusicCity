@@ -1,145 +1,790 @@
-// server/scraping/scrapeNashvilleScene.js
-const path = require("path");
 const puppeteer = require("puppeteer");
-const mongoose = require("../mongoose");
+const { chromium } = require("playwright");
 const Event = require("../models/Event");
-const { getEventImage } = require("../utils/eventImages");
-const { launchBrowser } = require("../utils/puppeteerConfig");
-require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
+const crypto = require('crypto');
+const { isMusicEvent, classifyEvent } = require('../utils/musicClassifier');
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
-if (!process.env.MONGO_URI) {
-  console.error("MONGO_URI not found in .env file!");
-  process.exit(1);
+// Browser detection and configuration utilities
+function getBrowserType(browser) {
+  // Playwright browsers have contexts property and version method
+  if (browser && browser.contexts && typeof browser.contexts === 'function') {
+    return 'playwright';
+  }
+  // Puppeteer browsers have newPage but no contexts function
+  if (browser && typeof browser.newPage === 'function' && !browser.contexts) {
+    return 'puppeteer';
+  }
+  return 'unknown';
 }
 
-async function scrapeDo615() {
+function getNavigationOptions(browserType) {
+  const baseOptions = { timeout: 120000 }; // Increased to 2 minutes
+  
+  switch (browserType) {
+    case 'playwright':
+      return { ...baseOptions, waitUntil: 'networkidle' };
+    case 'puppeteer':
+      return { ...baseOptions, waitUntil: 'networkidle2' };
+    default:
+      return { ...baseOptions, waitUntil: 'load' };
+  }
+}
+
+async function safeNavigation(page, url, browserType, maxRetries = 3) {
+  let navigationOptions = getNavigationOptions(browserType);
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Check if page is still attached
+      if (!page || page.isClosed()) {
+        throw new Error('Page is closed or detached');
+      }
+      
+      console.log(`🌐 Navigation attempt ${attempt}/${maxRetries} to ${url}`);
+      await page.goto(url, navigationOptions);
+      console.log(`✅ Successfully navigated to ${url}`);
+      return true;
+    } catch (navErr) {
+      console.log(`⚠️ Navigation attempt ${attempt}/${maxRetries} failed: ${navErr.message}`);
+      
+      // Handle detached frame errors by recreating page
+      if (navErr.message.includes('detached') || navErr.message.includes('closed')) {
+        console.log('🔄 Frame detached, attempting to recreate page...');
+        try {
+          const browser = page.browser();
+          page = await browser.newPage();
+          
+          // Reset viewport
+          if (browserType === 'puppeteer') {
+            await page.setViewport({ width: 1280, height: 720 });
+          } else {
+            await page.setViewportSize({ width: 1280, height: 720 });
+          }
+          
+          console.log('✅ Page recreated successfully');
+        } catch (recreateErr) {
+          console.log(`❌ Page recreation failed: ${recreateErr.message}`);
+          throw navErr;
+        }
+      }
+      
+      if (attempt < maxRetries) {
+        // Use faster fallback options
+        if (attempt === 2) {
+          navigationOptions = { ...navigationOptions, waitUntil: 'domcontentloaded', timeout: 30000 };
+          console.log(`🔄 Trying faster fallback: domcontentloaded`);
+        } else if (attempt === 3) {
+          navigationOptions = { ...navigationOptions, waitUntil: 'load', timeout: 15000 };
+          console.log(`🔄 Trying fastest fallback: load`);
+        }
+        
+        console.log(`🔄 Retrying in 2 seconds...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } else {
+        console.error(`❌ All navigation attempts failed for ${url}`);
+        throw navErr;
+      }
+    }
+  }
+  return false;
+}
+
+// Simple title normalization function
+function normalizeTitle(title) {
+  return title.toLowerCase().trim().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ');
+}
+
+// Simple image processor fallback
+const imageProcessor = {
+  async processEventImages(images, eventData) {
+    return {
+      url: images[0] || "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=240&fit=crop&auto=format",
+      source: "scraped",
+      quality: "medium"
+    };
+  },
+  getFallbackResult(eventData) {
+    return {
+      url: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=240&fit=crop&auto=format",
+      source: "fallback",
+      quality: "medium"
+    };
+  }
+};
+
+async function scrapeNashvilleScene() {
   let browser;
+  let browserInfo = {
+    instance: null,
+    type: null,
+    navigationOptions: null
+  };
+  const shouldCloseConnection = !global.mongoConnection;
+
   try {
-    console.log("Connecting to MongoDB...");
-    await mongoose.connect(process.env.MONGO_URI, { dbName: "mymusiccity" });
+    console.log("🔧 Browser Installation Script Starting...");
 
-    console.log("Launching Puppeteer...");
-    browser = await launchBrowser();
-    const page = await browser.newPage();
+    // Explicit browser installation for production environment
+    if (process.env.RENDER || process.env.NODE_ENV === 'production') {
+      console.log('🔄 Production environment detected, ensuring browsers...');
+      
+      try {
+        // Install Puppeteer browser using modern API
+        console.log('📦 Installing Puppeteer browser...');
+        const { execSync } = require('child_process');
+        
+        // Use npx to install Chrome browser for Puppeteer
+        execSync('npx puppeteer browsers install chrome', { 
+          stdio: 'pipe',
+          timeout: 120000 // 2 minute timeout
+        });
+        console.log('✅ Puppeteer browser installed successfully');
+      } catch (installErr) {
+        console.log('⚠️ Puppeteer browser installation failed:', installErr.message);
+      }
+    }
 
-    console.log("Navigating to https://do615.com/events ...");
-    await page.goto("https://do615.com/events", {
-      waitUntil: "networkidle2",
-      timeout: 60000,
-    });
+    // Load environment from parent directory
+    require('dotenv').config({ path: '../.env' });
+    
+    // Production browser setup
+    if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
+      console.log("🌐 Production environment detected - ensuring browsers are available...");
+    }
 
-    await page.waitForSelector(".ds-listing.event-card", { timeout: 15000 });
-    console.log("Extracting event data...");
+    console.log("🔧 Scraping config: timeout=120000ms, waitUntil=networkidle, retries=1");
 
-    const events = await page.evaluate(() => {
-      const items = Array.from(document.querySelectorAll(".ds-listing.event-card"));
-      return items.map((el) => {
-        const title =
-          el.querySelector(".ds-listing-event-title-text")?.textContent?.trim() ||
-          "Untitled Event";
-        const timeText =
-          el.querySelector(".ds-event-time")?.textContent?.trim() || "TBA";
-        const location =
-          el.querySelector(".ds-venue-name [itemprop='name']")?.textContent?.trim() ||
-          "Nashville, TN";
-        const image =
-          el.querySelector(".ds-cover-image")?.style?.backgroundImage
-            ?.replace(/url\(['"]?(.*?)['"]?\)/, "$1") || null;
-        const url = el.querySelector(".ds-listing-event-title")?.href || null;
+    // Connect to MongoDB
+    const mongoose = require('../mongoose');
+    console.log('MongoDB connection state:', mongoose.connection.readyState, '(disconnected)');
+    console.log('Connecting to MongoDB...');
+
+    // Actually connect to MongoDB
+    if (mongoose.connection.readyState === 0) {
+      await mongoose.connect(process.env.MONGO_URI, {
+        serverSelectionTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+      });
+      console.log('✅ MongoDB connected successfully');
+    } else {
+      console.log('✅ MongoDB already connected');
+    }
+
+    console.log('🚀 Starting enhanced browser launch sequence...');
+
+    try {
+      console.log('🎯 Attempting Playwright Chromium launch...');
+      browser = await chromium.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+      
+      browserInfo.instance = browser;
+      browserInfo.type = 'playwright';
+      browserInfo.navigationOptions = getNavigationOptions('playwright');
+      
+      console.log('✅ Playwright Chromium launched successfully!');
+      console.log(`🔧 Browser type: ${browserInfo.type}, waitUntil: ${browserInfo.navigationOptions.waitUntil}`);
+      
+    } catch (err) {
+      console.error('❌ Playwright failed:', err.message);
+      console.log('🔄 Falling back to Puppeteer...');
+      
+      try {
+        // Try multiple Chrome executable paths for Render deployment
+        const fs = require('fs');
+        const path = require('path');
+        
+        // Helper function to find Chrome in Puppeteer cache
+        const findPuppeteerChrome = () => {
+          try {
+            const cacheDir = '/opt/render/.cache/puppeteer/chrome';
+            if (fs.existsSync(cacheDir)) {
+              const versions = fs.readdirSync(cacheDir);
+              for (const version of versions) {
+                // Try chrome-linux64 first (modern), then chrome-linux (legacy)
+                const modernPath = path.join(cacheDir, version, 'chrome-linux64', 'chrome');
+                const legacyPath = path.join(cacheDir, version, 'chrome-linux', 'chrome');
+                
+                if (fs.existsSync(modernPath)) return modernPath;
+                if (fs.existsSync(legacyPath)) return legacyPath;
+              }
+            }
+          } catch (err) {
+            console.log('📁 Error scanning Puppeteer cache:', err.message);
+          }
+          return null;
+        };
+        
+        const puppeteerChrome = findPuppeteerChrome();
+        
+        const possiblePaths = [
+          process.env.PUPPETEER_EXECUTABLE_PATH,
+          '/usr/bin/google-chrome-stable',
+          '/usr/bin/google-chrome',
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium',
+          puppeteerChrome
+        ].filter(Boolean);
+        
+        let launchError;
+        
+        for (const executablePath of possiblePaths) {
+          try {
+            console.log(`🔍 Trying Chrome at: ${executablePath}`);
+            browser = await puppeteer.launch({
+              headless: true,
+              executablePath,
+              args: [
+                '--no-sandbox', 
+                '--disable-setuid-sandbox', 
+                '--disable-dev-shm-usage', 
+                '--disable-gpu',
+                '--no-zygote',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding'
+              ]
+            });
+            
+            // Only set browserInfo after successful launch
+            browserInfo.instance = browser;
+            browserInfo.type = 'puppeteer';
+            browserInfo.navigationOptions = getNavigationOptions('puppeteer');
+            
+            console.log(`✅ Puppeteer launched successfully with: ${executablePath}`);
+            console.log(`🔧 Browser type: ${browserInfo.type}, waitUntil: ${browserInfo.navigationOptions.waitUntil}`);
+            break;
+          } catch (pathErr) {
+            console.log(`❌ Failed with ${executablePath}: ${pathErr.message}`);
+            launchError = pathErr;
+            // Don't set browserInfo on failure - continue to next path
+            continue;
+          }
+        }
+        
+        if (!browser) {
+          // Try without executablePath (use bundled Chromium)
+          console.log('🔄 Trying Puppeteer with bundled Chromium...');
+          
+          // First ensure browsers are downloaded
+          try {
+            console.log('📦 Checking/installing Puppeteer browser...');
+            const { executablePath } = require('puppeteer');
+            console.log('Detected Puppeteer executable:', executablePath());
+          } catch (pathErr) {
+            console.log('⚠️ Puppeteer executable not found, attempting download...');
+            try {
+              const { install } = require('puppeteer/lib/cjs/puppeteer/node/install.js');
+              await install();
+              console.log('✅ Puppeteer browser download completed');
+            } catch (installErr) {
+              console.log('❌ Puppeteer browser download failed:', installErr.message);
+            }
+          }
+          
+          browser = await puppeteer.launch({
+            headless: true,
+            args: [
+              '--no-sandbox', 
+              '--disable-setuid-sandbox', 
+              '--disable-dev-shm-usage', 
+              '--disable-gpu',
+              '--no-zygote'
+            ]
+          });
+          
+          browserInfo.instance = browser;
+          browserInfo.type = 'puppeteer';
+          browserInfo.navigationOptions = getNavigationOptions('puppeteer');
+          
+          console.log('✅ Puppeteer launched with bundled Chromium!');
+          console.log(`🔧 Browser type: ${browserInfo.type}, waitUntil: ${browserInfo.navigationOptions.waitUntil}`);
+        }
+        
+      } catch (puppeteerErr) {
+        console.error('❌ Both Playwright and Puppeteer failed:', puppeteerErr.message);
+        throw new Error('Browser launch failed: Both Playwright and Puppeteer unavailable');
+      }
+    }
+
+    // Safety check: ensure browserInfo is properly configured
+    if (!browserInfo.instance) {
+      throw new Error('Browser instance not available');
+    }
+    
+    if (!browserInfo.type) {
+      console.log('⚠️ Browser type unknown, detecting...');
+      browserInfo.type = getBrowserType(browserInfo.instance);
+    }
+    
+    if (!browserInfo.navigationOptions) {
+      console.log('⚠️ Navigation options missing, setting defaults...');
+      browserInfo.navigationOptions = getNavigationOptions(browserInfo.type);
+    }
+    
+    console.log(`🔧 Final browser configuration: ${browserInfo.type}, waitUntil: ${browserInfo.navigationOptions.waitUntil}`);
+
+    const page = await browserInfo.instance.newPage();
+    
+    // Set viewport based on detected browser type
+    if (browserInfo.type === 'puppeteer') {
+      await page.setViewport({ width: 1280, height: 720 });
+      console.log('🔧 Using Puppeteer viewport API');
+    } else if (browserInfo.type === 'playwright') {
+      await page.setViewportSize({ width: 1280, height: 720 });
+      console.log('🔧 Using Playwright viewport API');
+    } else {
+      // Fallback for unknown browser type
+      try {
+        await page.setViewport({ width: 1280, height: 720 });
+        console.log('🔧 Using Puppeteer viewport API (fallback)');
+      } catch {
+        await page.setViewportSize({ width: 1280, height: 720 });
+        console.log('🔧 Using Playwright viewport API (fallback)');
+      }
+    }
+
+    // Scrape multiple DO615 pages with simplified approach for speed
+    const urlsToScrape = [
+      "https://do615.com/events",
+      "https://do615.com/events/music"
+    ]; // Reduced URLs for faster execution
+    
+    const allEvents = [];
+    
+    for (const url of urlsToScrape) {
+      try {
+        console.log(`🌐 Starting navigation to ${url}...`);
+        console.log(`🔧 Using ${browserInfo.type} with waitUntil: ${browserInfo.navigationOptions.waitUntil}`);
+        
+        // Use safe navigation with browser-specific options
+        const navigationSuccess = await safeNavigation(page, url, browserInfo.type);
+        
+        if (!navigationSuccess) {
+          throw new Error('Navigation failed after all attempts');
+        }
+        
+        console.log(`📊 Extracting event data from ${url}...`);
+
+        const pageEvents = await page.evaluate(() => {
+      const eventElements = document.querySelectorAll(".event-card");
+      
+      return Array.from(eventElements).map((el, index) => {
+        // Updated selectors based on actual DO615 structure
+        const title = el.querySelector(".ds-listing-event-title-text")?.textContent?.trim() || "Untitled Event";
+        const timeText = el.querySelector(".ds-event-time")?.textContent?.trim() || "";
+        const location = el.querySelector(".ds-venue-name span[itemprop='name']")?.textContent?.trim() || "";
+        
+        // Extract image from background-image style
+        const images = [];
+        const coverImage = el.querySelector('.ds-cover-image');
+        if (coverImage && coverImage.style.backgroundImage) {
+          const imageMatch = coverImage.style.backgroundImage.match(/url\(['"]([^'"]+)['"]\)/);
+          if (imageMatch) {
+            images.push(imageMatch[1]);
+          }
+        }
+
+        // Get the event URL from the main title link
+        const linkEl = el.querySelector(".ds-listing-event-title");
+        const url = linkEl?.href || null;
+
+        // Extract date from meta tag for better accuracy
+        const dateMetaEl = el.querySelector('meta[itemprop="startDate"]');
+        const datetime = dateMetaEl?.getAttribute('datetime') || '';
 
         return {
           title,
           dateText: timeText,
+          datetime,
           location,
-          image,
+          images: [...new Set(images)], // Remove duplicates
           url,
+          eventIndex: index
         };
       });
     });
 
-    console.log(`🪄 Found ${events.length} events`);
+        console.log(`🪄 Found ${pageEvents.length} events from ${url}`);
+        allEvents.push(...pageEvents);
+        
+        // Small delay between pages
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+      } catch (urlError) {
+        console.log(`⚠️  Failed to scrape ${url}: ${urlError.message}`);
+      }
+    }
 
-    if (events.length === 0) {
+    // Remove duplicates by URL (same event might appear on multiple pages)
+    const uniqueEvents = allEvents.filter((event, index, self) => 
+      index === self.findIndex(e => e.url === event.url && e.title === event.title)
+    );
+
+    console.log(`🪄 Found ${allEvents.length} total events, ${uniqueEvents.length} unique events`);
+
+    if (uniqueEvents.length === 0) {
       console.log("No events found — check selectors or page structure.");
       return;
     }
+    
+    const events = uniqueEvents;
 
-    // Normalize and prepare data
-    function normalizeTitle(s) {
-      if (!s) return null;
-      return s
-        .toString()
-        .toLowerCase()
-        .replace(/\s+/g, " ")
-        .replace(/[\W_]+/g, " ")
-        .trim();
-    }
+    // Process each event
+    const formattedEvents = [];
+    const baseDate = new Date(); // Use consistent base for fallback dates
 
-    const formattedEvents = events.map((e, index) => {
-      let parsedDate = null;
+    for (const [index, e] of events.entries()) {
+      let parsedDate;
+      let dateParsingSuccess = false;
+      
       try {
-        const today = new Date();
-        parsedDate = new Date(`${today.toISOString().split("T")[0]} ${e.dateText}`);
-        if (isNaN(parsedDate)) parsedDate = today;
-      } catch {
-        parsedDate = new Date();
+        // Try to parse from datetime meta tag first
+        if (e.datetime) {
+          // Clean up URL encoding issues in datetime string
+          let cleanDateTime = e.datetime.replace(/%CDT/g, '-05:00').replace(/%CST/g, '-06:00');
+          
+          // Try parsing the cleaned datetime
+          parsedDate = new Date(cleanDateTime);
+          console.log(`Event "${e.title}": datetime="${e.datetime}" -> cleaned="${cleanDateTime}" -> parsed="${parsedDate.toDateString()}"`);
+          
+          if (!isNaN(parsedDate.getTime())) {
+            dateParsingSuccess = true;
+          } else {
+            throw new Error('Invalid datetime after cleaning');
+          }
+        } else if (e.dateText) {
+          // Fallback to parsing from displayed time text
+          const dateMatch = e.dateText.match(/(\w+)\s+(\d+)/);
+          if (dateMatch) {
+            const [, month, day] = dateMatch;
+            const monthNum = new Date(`${month} 1, 2000`).getMonth();
+            parsedDate = new Date(2025, monthNum, parseInt(day));
+            console.log(`Event "${e.title}": parsed from dateText="${e.dateText}" -> ${parsedDate.toDateString()}`);
+            dateParsingSuccess = true;
+          } else {
+            throw new Error(`Could not parse dateText="${e.dateText}"`);
+          }
+        } else {
+          throw new Error('No date info available');
+        }
+      } catch (err) {
+        console.log(`Event "${e.title}": Date parsing error - ${err.message}`);
+        dateParsingSuccess = false;
+      }
+      
+      // Enhanced fallback date assignment to prevent duplicate timestamps
+      if (!dateParsingSuccess) {
+        // Create unique fallback dates by adding event index as offset
+        parsedDate = new Date(baseDate.getTime() + (index * 60000)); // Each event gets unique minute
+        console.log(`Event "${e.title}": Using fallback date with offset -> ${parsedDate.toDateString()} ${parsedDate.toTimeString()}`);
       }
 
-      // Use scraped image if available, otherwise generate one based on content
-      const eventImage = e.image || getEventImage(e.title, "Scraped from Do615 (Nashville Scene network)", index);
+      // Enhanced image processing
+      const eventData = {
+        id: `do615_${index}`,
+        title: e.title,
+        description: "Scraped from Do615 (Nashville Scene network)",
+        venue: e.location,
+        date: parsedDate
+      };
 
-      return {
+      // Process images using the enhanced pipeline
+      let imageResult;
+      if (e.images && e.images.length > 0) {
+        console.log(`Processing ${e.images.length} images for event: ${e.title}`);
+        imageResult = await imageProcessor.processEventImages(e.images, eventData);
+      } else {
+        console.log(`No images found for event: ${e.title}, using fallback`);
+        imageResult = imageProcessor.getFallbackResult(eventData);
+      }
+
+      // Map genre from detectGenre output to Event schema enum values
+      function mapGenreToSchema(detectedGenre) {
+        const genreMapping = {
+          'jazz': 'Jazz',
+          'hiphop': 'Hip-Hop',
+          'indie': 'Indie', 
+          'rock': 'Rock',
+          'country': 'Country',
+          'electronic': 'Electronic',
+          'folk': 'Folk',
+          'blues': 'Blues',
+          'pop': 'Pop',
+          'classical': 'Classical',
+          'rap': 'Hip-Hop', // Map rap to Hip-Hop
+          'general': 'Other'
+        };
+        return genreMapping[detectedGenre] || 'Other';
+      }
+      
+      // Map musicType to schema enum values
+      function mapMusicTypeToSchema(musicType) {
+        const musicTypeMapping = {
+          'concert': 'concert',
+          'festival': 'festival', 
+          'open-mic': 'open-mic',
+          'dj-set': 'dj-set',
+          'acoustic': 'acoustic',
+          'jam-session': 'jam-session',
+          'other': 'other'
+        };
+        return musicTypeMapping[musicType] || 'other';
+      }
+
+      const formattedEvent = {
         title: e.title,
         normalizedTitle: normalizeTitle(e.title),
         description: "Scraped from Do615 (Nashville Scene network)",
         date: parsedDate,
         location: e.location,
-        image: eventImage,
-        url: e.url,
-        createdBy: null, // avoid ObjectId casting issue
-        source: "do615", // optional: mark origin
+        image: imageResult.url,
+        imageSource: imageResult.source,
+        imageQuality: imageResult.quality,
+        url: e.url || `https://do615.com/events/generated/${crypto.createHash('sha256').update(`${e.title}-${e.location}-${parsedDate.toISOString()}`).digest('hex').substring(0,16)}`,
+        createdBy: null,
+        source: "do615",
+        // Use properly mapped enum values
+        genre: "Other", // Will be updated by classification below
+        musicType: "other" // Will be updated by classification below
       };
+
+      formattedEvents.push(formattedEvent);
+      
+      // Add small delay to avoid overwhelming image processing
+      if (index < events.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    // MUSIC FILTERING: Apply music classification to filter out non-music events
+    console.log(`🎵 Filtering ${formattedEvents.length} events for music content...`);
+    
+    const musicEvents = [];
+    const nonMusicEvents = [];
+    
+    for (const event of formattedEvents) {
+      // Classify the event using music classifier
+      if (isMusicEvent(event.title, event.description, event.location)) {
+        // Enhance classification
+        const classification = classifyEvent(event);
+        event.genre = mapGenreToSchema(classification.genre || 'general');
+        event.musicType = mapMusicTypeToSchema(classification.musicType || 'other');
+        event.venue = classification.venue || event.venue;
+        
+        musicEvents.push(event);
+        console.log(`   🎵 MUSIC: "${event.title}" (${event.genre}/${event.musicType})`);
+      } else {
+        nonMusicEvents.push(event);
+        console.log(`   🚫 NON-MUSIC: "${event.title}" - ${event.location}`);
+      }
+    }
+    
+    console.log(`\n🎯 Music filtering results:`);
+    console.log(`   🎵 Music events: ${musicEvents.length}`);
+    console.log(`   🚫 Non-music events: ${nonMusicEvents.length}`);
+    console.log(`   📊 Music ratio: ${Math.round((musicEvents.length / formattedEvents.length) * 100)}%`);
+    
+    // Use only music events for insertion
+    const eventsToInsert = musicEvents;
+    console.log(`\n💾 Proceeding with ${eventsToInsert.length} music-only events`);
+
+    // Enhanced duplicate checking matching the unique constraint (title + date + location)
+    console.log(`🔍 Checking for duplicates using unique constraint (title + date + location)...`);
+    
+    // Create query conditions matching the unique index
+    const duplicateQueries = eventsToInsert.map(event => ({
+      title: event.title,
+      date: event.date,
+      location: event.location || { $exists: false } // Handle null/undefined locations
+    }));
+    
+    const existing = await Event.find({ 
+      $or: duplicateQueries
+    }).select("title date location source createdAt");
+    
+    console.log(`🔍 Found ${existing.length} existing events in database:`);
+    existing.forEach(e => {
+      console.log(`   - "${e.title}" at "${e.location || 'No location'}" on ${e.date.toDateString()} (${e.source})`);
     });
+    
+    // Create a set of existing event signatures for fast lookup
+    const existingSignatures = new Set(existing.map(e => 
+      `${e.title}|${e.date.getTime()}|${e.location || ''}`
+    ));
 
-    // Avoid duplicates (check by title OR url)
-    const titles = formattedEvents.map((e) => e.title);
-    const urls = formattedEvents.map((e) => e.url).filter(Boolean);
-    const queryOr = [];
-    if (titles.length) queryOr.push({ title: { $in: titles } });
-    if (urls.length) queryOr.push({ url: { $in: urls } });
-    const existing = queryOr.length ? await Event.find({ $or: queryOr }).select("title url") : [];
-    const existingTitles = new Set(existing.map((e) => e.title));
-    const existingUrls = new Set(existing.map((e) => e.url).filter(Boolean));
-
-    const newEvents = formattedEvents.filter((e) => {
-      if (existingUrls.has(e.url)) return false;
-      if (existingTitles.has(e.title)) return false;
+    const newEvents = eventsToInsert.filter((e) => {
+      const signature = `${e.title}|${e.date.getTime()}|${e.location || ''}`;
+      
+      if (existingSignatures.has(signature)) {
+        console.log(`   🚫 SKIPPING DUPLICATE: "${e.title}" (${e.location || 'No location'}) on ${e.date.toDateString()}`);
+        return false;
+      }
+      
+      console.log(`   ✅ NEW EVENT: "${e.title}" (${e.location || 'No location'}) on ${e.date.toDateString()}`);
       return true;
     });
+
+    console.log(`🎯 After duplicate filtering: ${newEvents.length} new events to insert`);
 
     if (newEvents.length === 0) {
       console.log("No new events to add (all already exist)");
     } else {
-      try {
-        await Event.insertMany(newEvents, { ordered: false });
-        console.log(`Added ${newEvents.length} new events to the database`);
-      } catch (dbErr) {
-        if (dbErr && dbErr.code === 11000) {
-          console.warn("Some events were skipped due to duplicate keys (unique index)");
-        } else {
-          console.error("Failed to insert DO615 events:", dbErr && dbErr.message ? dbErr.message : dbErr);
+      // Pre-insertion validation to catch potential issues early
+      console.log(`🔍 Pre-validating ${newEvents.length} events before insertion...`);
+      const validEvents = [];
+      const invalidEvents = [];
+      
+      for (const event of newEvents) {
+        try {
+          // Create a test document to validate schema
+          const testEvent = new Event(event);
+          await testEvent.validate();
+          validEvents.push(event);
+          console.log(`   ✅ VALID: "${event.title}" - ${event.date.toDateString()}`);
+        } catch (validationErr) {
+          invalidEvents.push({ event, error: validationErr.message });
+          console.log(`   ❌ INVALID: "${event.title}" - ${validationErr.message}`);
         }
       }
+      
+      if (invalidEvents.length > 0) {
+        console.log(`⚠️ ${invalidEvents.length} events failed validation and will be skipped`);
+        invalidEvents.forEach(({ event, error }) => {
+          console.log(`     - "${event.title}": ${error}`);
+        });
+      }
+      
+      if (validEvents.length === 0) {
+        console.log("❌ No valid events to insert after validation");
+      } else {
+        try {
+          console.log(`💾 Inserting ${validEvents.length} validated events into database...`);
+          
+          // Use validated events only
+          const insertResult = await Event.insertMany(validEvents, { 
+            ordered: false // Continue on individual errors
+          });
+          
+          console.log(`📝 Insert operation completed for ${insertResult.length} events`);
+        
+        // Simple verification
+        const verifyCount = await Event.countDocuments({ source: 'do615' });
+        const totalCount = await Event.countDocuments({});
+        
+        console.log(`✅ DATABASE VERIFICATION:`);
+        console.log(`   📊 Total events in database: ${totalCount}`);
+        console.log(`   🎯 DO615 events in database: ${verifyCount}`);
+        console.log(`   💾 Events inserted this run: ${insertResult.length}`);
+        
+        if (insertResult.length > 0) {
+          console.log(`🎉 SUCCESS: ${insertResult.length} DO615 events added to database`);
+        } else {
+          console.error('🚨 WARNING: No events were inserted');
+        }
+        
+      } catch (dbErr) {
+        console.error("🚨 DATABASE INSERT FAILED:", dbErr);
+        console.error("📋 Error details:", {
+          name: dbErr.name,
+          message: dbErr.message,
+          code: dbErr.code
+        });
+        
+        // Enhanced bulk write error analysis
+        if (dbErr.name === 'BulkWriteError') {
+          console.log("🔍 Analyzing BulkWriteError details...");
+          
+          if (dbErr.writeErrors && dbErr.writeErrors.length > 0) {
+            console.log(`📊 ${dbErr.writeErrors.length} specific write errors:`);
+            dbErr.writeErrors.forEach((writeErr, idx) => {
+              console.log(`   ${idx + 1}. Index ${writeErr.index}: ${writeErr.errmsg}`);
+              if (writeErr.op) {
+                console.log(`      Event: "${writeErr.op.title}" at "${writeErr.op.location || 'No location'}" on ${new Date(writeErr.op.date).toDateString()}`);
+              }
+            });
+          }
+          
+          if (dbErr.result && dbErr.result.nInserted > 0) {
+            console.log(`✅ Partial success: ${dbErr.result.nInserted} events were successfully inserted`);
+          }
+          
+          // Try individual insertion for failed events only if we have detailed error info
+          if (validEvents.length > 1 && dbErr.result.nInserted < validEvents.length) {
+            console.log("🔄 Attempting individual event insertion for failed items...");
+            let successCount = dbErr.result.nInserted || 0;
+            
+            const failedIndexes = new Set(dbErr.writeErrors?.map(e => e.index) || []);
+            
+            for (const [index, event] of validEvents.entries()) {
+              if (failedIndexes.has(index)) {
+                try {
+                  await Event.create(event);
+                  successCount++;
+                  console.log(`   ✅ Individual insert success: "${event.title}"`);
+                } catch (individualErr) {
+                  console.log(`   ❌ Individual insert failed: "${event.title}" - ${individualErr.message}`);
+                  if (individualErr.code === 11000) {
+                    console.log(`      Duplicate key violation: ${individualErr.keyValue ? JSON.stringify(individualErr.keyValue) : 'Unknown key'}`);
+                  }
+                }
+              }
+            }
+            
+            console.log(`📊 Final insertion results: ${successCount}/${validEvents.length} successful`);
+          }
+        } else {
+          console.error("💥 Complete database operation failure");
+        }
+        
+        // Enhanced error analysis
+        if (dbErr.code === 11000) {
+          console.warn("⚠️ Duplicate key constraint violations detected");
+          console.log("Key pattern:", dbErr.keyPattern || 'Unknown');
+          console.log("Key value:", dbErr.keyValue || 'Unknown');
+        } else if (dbErr.name === 'ValidationError') {
+          console.error("❌ Schema validation errors:", Object.keys(dbErr.errors || {}).map(key => `${key}: ${dbErr.errors[key].message}`));
+        } else {
+          console.error("❌ Unexpected database error:", dbErr.message);
+          console.error("Error code:", dbErr.code);
+          console.error("Error name:", dbErr.name);
+        }
+        
+        // Don't throw - let the process complete
+      }
     }
+  }
   } catch (err) {
     console.error("Scrape failed:", err.message);
   } finally {
-    if (browser) await browser.close();
-    await mongoose.connection.close();
-    console.log("MongoDB connection closed.");
+    if (browserInfo && browserInfo.instance) {
+      console.log(`🔄 Closing ${browserInfo.type} browser...`);
+      await browserInfo.instance.close();
+    }
+    
+    // SIMPLIFIED: Basic connection cleanup
+    if (shouldCloseConnection) {
+      console.log('🔄 Closing MongoDB connection...');
+      
+      try {
+        const mongoose = require('../mongoose');
+        if (mongoose.connection.readyState === 1) {
+          await mongoose.connection.close();
+        }
+        console.log('MongoDB connection closed.');
+      } catch (verifyErr) {
+        console.log('Connection close warning:', verifyErr.message);
+      }
+    }
   }
 }
 
-scrapeDo615();
+module.exports = scrapeNashvilleScene;
+
+// Allow direct execution
+if (require.main === module) {
+  scrapeNashvilleScene().catch(console.error);
+}

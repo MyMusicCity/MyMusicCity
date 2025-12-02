@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyMusicCity - Database Diagnostics</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status-good { color: #28a745; }
+        .status-warning { color: #fd7e14; }
+        .status-error { color: #dc3545; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            border-left: 4px solid #007bff;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover { background: #0056b3; }
+        .btn-danger { background: #dc3545; }
+        .btn-danger:hover { background: #c82333; }
+        .loading { opacity: 0.6; pointer-events: none; }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .refresh-time {
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎵 MyMusicCity Database Diagnostics</h1>
+        <p>Enhanced Image Processing System Status & Event Database Management</p>
+    </div>
+
+    <div class="card">
+        <h2>🔍 System Status</h2>
+        <div id="status-container">
+            <p>Loading diagnostics...</p>
+        </div>
+        <button class="btn" onclick="refreshDiagnostics()">🔄 Refresh Diagnostics</button>
+    </div>
+
+    <div class="card">
+        <h2>📊 Database Statistics</h2>
+        <div id="stats-container" class="stats-grid">
+            <!-- Stats will be loaded here -->
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🧹 Database Maintenance</h2>
+        <p>Remove events older than 2 weeks to keep database clean and improve performance.</p>
+        <button class="btn btn-danger" onclick="cleanupDatabase()">🗑️ Cleanup Old Events</button>
+        <div id="cleanup-result" style="margin-top: 15px;"></div>
+    </div>
+
+    <div class="card">
+        <h2>🔄 Scraper Controls</h2>
+        <p>Manually trigger scrapers to get fresh events with enhanced image processing.</p>
+        <button class="btn" onclick="triggerAllScrapers()">🚀 Run All Scrapers</button>
+        <button class="btn" onclick="triggerScraper('nashvillescene')">📰 Nashville Scene</button>
+        <button class="btn" onclick="triggerScraper('visitmusiccity')">🎭 Visit Music City</button>
+        <button class="btn" onclick="triggerScraper('scenecalendar')">📅 Scene Calendar</button>
+        <div id="scraper-result" style="margin-top: 15px;"></div>
+    </div>
+
+    <div class="card">
+        <h2>📈 Current Events API</h2>
+        <p>Test the filtered API endpoint that shows only recent events with enhanced image priority.</p>
+        <button class="btn" onclick="testCurrentAPI()">🔗 Test /api/events/current</button>
+        <div id="api-result">
+            <pre id="api-output" style="display: none;"></pre>
+        </div>
+    </div>
+
+    <div class="refresh-time" id="refresh-time"></div>
+
+    <script>
+        let diagnosticsData = null;
+
+        async function refreshDiagnostics() {
+            const container = document.getElementById('status-container');
+            const statsContainer = document.getElementById('stats-container');
+            
+            try {
+                container.innerHTML = '<p>🔄 Loading diagnostics...</p>';
+                
+                const response = await fetch('/api/admin/database/diagnose');
+                diagnosticsData = await response.json();
+                
+                const isClean = diagnosticsData.status === 'CLEAN';
+                const statusClass = isClean ? 'status-good' : 'status-warning';
+                
+                container.innerHTML = `
+                    <div class="${statusClass}">
+                        <h3>${isClean ? '✅ Database is Clean' : '⚠️ Cleanup Recommended'}</h3>
+                        <p>Last updated: ${new Date(diagnosticsData.timestamp).toLocaleString()}</p>
+                        ${!isClean ? `<p><strong>${diagnosticsData.totals.oldEvents}</strong> old events should be removed</p>` : ''}
+                    </div>
+                `;
+                
+                // Update stats
+                const stats = diagnosticsData.totals;
+                statsContainer.innerHTML = `
+                    <div class="stat-box">
+                        <h4>Total Events</h4>
+                        <h2>${stats.totalEvents}</h2>
+                    </div>
+                    <div class="stat-box">
+                        <h4>Recent Events</h4>
+                        <h2 class="status-good">${stats.recentEvents}</h2>
+                        <small>Last 2 weeks</small>
+                    </div>
+                    <div class="stat-box">
+                        <h4>Old Events</h4>
+                        <h2 class="${stats.oldEvents > 0 ? 'status-warning' : 'status-good'}">${stats.oldEvents}</h2>
+                        <small>Older than 2 weeks</small>
+                    </div>
+                    <div class="stat-box">
+                        <h4>Enhanced Images</h4>
+                        <h2 class="status-good">${stats.enhancedEvents}</h2>
+                        <small>With image metadata</small>
+                    </div>
+                    <div class="stat-box">
+                        <h4>Scraped Images</h4>
+                        <h2 class="status-good">${stats.scrapedImages}</h2>
+                        <small>High quality scraped</small>
+                    </div>
+                `;
+                
+                document.getElementById('refresh-time').textContent = 
+                    `Last refreshed: ${new Date().toLocaleString()}`;
+                
+            } catch (error) {
+                container.innerHTML = `<div class="status-error">❌ Error loading diagnostics: ${error.message}</div>`;
+            }
+        }
+
+        async function cleanupDatabase() {
+            const button = event.target;
+            const resultDiv = document.getElementById('cleanup-result');
+            
+            if (!confirm('⚠️ This will permanently delete old events. Are you sure?')) {
+                return;
+            }
+            
+            try {
+                button.disabled = true;
+                button.textContent = '🔄 Cleaning up...';
+                resultDiv.innerHTML = '<p>🔄 Cleaning up old events...</p>';
+                
+                const response = await fetch('/api/admin/database/cleanup', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.innerHTML = `
+                        <div class="status-good">
+                            <h4>✅ Cleanup Completed Successfully</h4>
+                            <p>• Deleted: <strong>${result.deletedCount}</strong> old events</p>
+                            <p>• Remaining: <strong>${result.totalAfter}</strong> total events</p>
+                            <p>• Enhanced: <strong>${result.enhancedEvents}</strong> events with enhanced images</p>
+                        </div>
+                    `;
+                    
+                    // Refresh diagnostics after cleanup
+                    setTimeout(refreshDiagnostics, 1000);
+                } else {
+                    resultDiv.innerHTML = `<div class="status-error">❌ Cleanup failed: ${result.error}</div>`;
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status-error">❌ Error during cleanup: ${error.message}</div>`;
+            } finally {
+                button.disabled = false;
+                button.textContent = '🗑️ Cleanup Old Events';
+            }
+        }
+
+        async function testCurrentAPI() {
+            const output = document.getElementById('api-output');
+            const button = event.target;
+            
+            try {
+                button.disabled = true;
+                button.textContent = '🔄 Testing...';
+                output.style.display = 'block';
+                output.textContent = 'Loading current events...';
+                
+                const response = await fetch('/api/events/current');
+                const events = await response.json();
+                
+                output.textContent = JSON.stringify({
+                    count: events.length,
+                    sample: events.slice(0, 3).map(e => ({
+                        title: e.title?.substring(0, 50) + (e.title?.length > 50 ? '...' : ''),
+                        date: e.date?.split('T')[0],
+                        source: e.source,
+                        imageSource: e.imageSource,
+                        hasEnhancedImage: e.hasEnhancedImage
+                    }))
+                }, null, 2);
+                
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            } finally {
+                button.disabled = false;
+                button.textContent = '🔗 Test /api/events/current';
+            }
+        }
+
+        // Auto-refresh diagnostics every 30 seconds
+        setInterval(refreshDiagnostics, 30000);
+        
+        // Initial load
+        refreshDiagnostics();
+
+        // Scraper control functions
+        async function triggerAllScrapers() {
+            const button = event.target;
+            const resultDiv = document.getElementById('scraper-result');
+            
+            try {
+                button.disabled = true;
+                button.textContent = '🔄 Running all scrapers...';
+                resultDiv.innerHTML = '<p>🔄 Triggering all scrapers...</p>';
+                
+                const response = await fetch('/api/admin/scrape/all', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    const scraperResults = result.scrapers.map(s => 
+                        `<li class="${s.status === 'success' ? 'status-good' : 'status-error'}">
+                            ${s.status === 'success' ? '✅' : '❌'} ${s.name}: ${s.message}
+                        </li>`
+                    ).join('');
+                    
+                    resultDiv.innerHTML = `
+                        <div class="status-good">
+                            <h4>🚀 Scraper Results: ${result.message}</h4>
+                            <ul>${scraperResults}</ul>
+                        </div>
+                    `;
+                    
+                    // Refresh diagnostics after scraping
+                    setTimeout(refreshDiagnostics, 2000);
+                } else {
+                    resultDiv.innerHTML = `<div class="status-error">❌ Scraping failed: ${result.error}</div>`;
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status-error">❌ Error during scraping: ${error.message}</div>`;
+            } finally {
+                button.disabled = false;
+                button.textContent = '🚀 Run All Scrapers';
+            }
+        }
+
+        async function triggerScraper(source) {
+            const button = event.target;
+            const resultDiv = document.getElementById('scraper-result');
+            
+            try {
+                button.disabled = true;
+                button.textContent = '🔄 Running...';
+                resultDiv.innerHTML = `<p>🔄 Running ${source} scraper...</p>`;
+                
+                const response = await fetch(`/api/admin/scrape/${source}`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.innerHTML = `
+                        <div class="status-good">
+                            <h4>✅ ${source} Scraper Completed</h4>
+                            <p>${result.message}</p>
+                        </div>
+                    `;
+                    
+                    // Refresh diagnostics after scraping
+                    setTimeout(refreshDiagnostics, 2000);
+                } else {
+                    resultDiv.innerHTML = `<div class="status-error">❌ ${source} scraper failed: ${result.error}</div>`;
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status-error">❌ Error running ${source} scraper: ${error.message}</div>`;
+            } finally {
+                button.disabled = false;
+                // Reset button text based on source
+                const buttonTexts = {
+                    'nashvillescene': '📰 Nashville Scene',
+                    'visitmusiccity': '🎭 Visit Music City', 
+                    'scenecalendar': '📅 Scene Calendar'
+                };
+                button.textContent = buttonTexts[source] || `🔄 ${source}`;
+            }
+        }
+    </script>
+</body>
+</html>

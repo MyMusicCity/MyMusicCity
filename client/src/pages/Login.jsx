@@ -1,129 +1,98 @@
-import React, { useState, useContext } from "react";
+import React, { useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { loginUser, signupUser } from "../api";
+import { useAuth0 } from "@auth0/auth0-react";
 import "../styles.css";
 import { AuthContext } from "../AuthContext";
 
 export default function Login() {
   const navigate = useNavigate();
-  const [isSignup, setIsSignup] = useState(false);
-  const [form, setForm] = useState({
-    username: "",
-    email: "",
-    password: "",
-    year: "",
-    major: "",
-  });
-  const [error, setError] = useState("");
-  const { setToken, setUser } = useContext(AuthContext);
-  const [loading, setLoading] = useState(false);
+  const { loginWithRedirect, isAuthenticated, isLoading, error } = useAuth0();
+  const { token } = useContext(AuthContext);
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const res = isSignup
-        ? await signupUser(form.username, form.email, form.password, form.year, form.major)
-        : await loginUser(form.email, form.password);
-      
-      if (isSignup) {
-        // After successful signup, show success message
-        setError("");
-        alert("Account created successfully! You can now log in.");
-        setIsSignup(false);
-        setLoading(false);
-        return;
-      }
-
-      if (res?.token) {
-        localStorage.setItem("token", res.token);
-        setToken(res.token);
-      }
-      if (res?.user) {
-        localStorage.setItem("user", JSON.stringify(res.user));
-        setUser(res.user);
-        localStorage.setItem("justLoggedIn", "true");
-      }
-
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && token) {
       navigate("/", { replace: true });
-    } catch (err) {
-      console.error("Login/signup error:", err);
-      setError(err.message || "Something went wrong");
-    } finally {
-      setLoading(false);
     }
+  }, [isAuthenticated, token, navigate]);
+
+  const handleLogin = () => {
+    loginWithRedirect();
   };
+
+  if (isLoading) {
+    return (
+      <div className="login-container">
+        <div className="login-left">
+          <h1 className="brand">MyMusicCity</h1>
+          <div className="login-card">
+            <div className="loading-spinner">
+              <div className="spinner"></div>
+              <p>Loading...</p>
+            </div>
+          </div>
+        </div>
+        <div className="login-right">
+          <div className="overlay">
+            <h1 className="login-hero-text">
+              Your<br />Music<br />City.
+            </h1>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="login-container">
+        <div className="login-left">
+          <h1 className="brand">MyMusicCity</h1>
+          <div className="login-card">
+            <div className="error-message">
+              <h2>Authentication Error</h2>
+              <p>{error.message}</p>
+              <button className="auth-button" onClick={() => window.location.reload()}>
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="login-right">
+          <div className="overlay">
+            <h1 className="login-hero-text">
+              Your<br />Music<br />City.
+            </h1>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-container">
       <div className="login-left">
         <h1 className="brand">MyMusicCity</h1>
         <div className="login-card">
-          <h2>{isSignup ? "Create Account" : "Log In"}</h2>
-          <form onSubmit={handleSubmit}>
-            {isSignup && (
-              <>
-                <input
-                  type="text"
-                  name="username"
-                  placeholder="Username"
-                  value={form.username}
-                  onChange={handleChange}
-                  required
-                />
-                <input
-                  type="text"
-                  name="year"
-                  placeholder="Year (e.g. Senior)"
-                  value={form.year}
-                  onChange={handleChange}
-                  required
-                />
-                <input
-                  type="text"
-                  name="major"
-                  placeholder="Major (e.g. Computer Science)"
-                  value={form.major}
-                  onChange={handleChange}
-                  required
-                />
-              </>
-            )}
-            <input
-              type="email"
-              name="email"
-              placeholder="Email"
-              value={form.email}
-              onChange={handleChange}
-              required
-            />
-            <input
-              type="password"
-              name="password"
-              placeholder="Password"
-              value={form.password}
-              onChange={handleChange}
-              required
-            />
-            {error && <p className="error">{error}</p>}
-            <button type="submit" disabled={loading}>
-              {loading
-                ? isSignup
-                  ? "Signing up..."
-                  : "Logging in..."
-                : isSignup
-                ? "Sign Up"
-                : "Log In"}
-            </button>
-          </form>
-          <p className="toggle-text">
-            {isSignup ? "Already have an account?" : "Don’t have an account?"}{" "}
-            <span onClick={() => setIsSignup(!isSignup)} className="toggle-link">
-              {isSignup ? "Log in" : "Sign up"}
-            </span>
-          </p>
+          <h2>Welcome Back</h2>
+          
+          <div className="vanderbilt-notice">
+            <p>🎓 For Vanderbilt Students</p>
+            <small>Secure access with your @vanderbilt.edu account</small>
+          </div>
+          
+          <button className="auth-button primary" onClick={handleLogin}>
+            🔐 Sign In with Vanderbilt Account
+          </button>
+          
+          <div className="auth-info">
+            <p>Powered by Auth0</p>
+            <small>Your credentials are never stored on our servers</small>
+          </div>
+          
+          <div className="features-preview">
+            <small>Discover • RSVP • Connect • Explore</small>
+          </div>
         </div>
       </div>
 

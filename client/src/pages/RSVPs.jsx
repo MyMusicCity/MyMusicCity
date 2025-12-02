@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useContext } from "react";
-import { getUserRsvps, getMeRsvps, ping } from "../api";
+import { getUserRsvps, getMeRsvps, ping, deleteRsvp } from "../api";
 import EventCard from "../components/EventCard";
 import { AuthContext } from "../AuthContext";
 import "../styles.css";
@@ -10,15 +10,42 @@ export default function RSVPs() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
+  const loadRsvps = async () => {
     if (!user) return;
-
+    
     setLoading(true);
-    // Prefer the authenticated endpoint so the client does not need to supply the user id
-    getMeRsvps()
-      .then((data) => setRsvps(data || []))
-      .catch((err) => setError(err.message || "Failed to load RSVPs"))
-      .finally(() => setLoading(false));
+    try {
+      const data = await getMeRsvps();
+      // Filter out any RSVPs that don't have valid event data
+      const validRsvps = (data || []).filter(r => r && r.event && (r.event._id || r.event.id));
+      setRsvps(validRsvps);
+      setError(null);
+    } catch (err) {
+      setError(err.message || "Failed to load RSVPs");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnRsvp = async (eventId, eventTitle) => {
+    const shortTitle = eventTitle?.substring(0, 30) + (eventTitle?.length > 30 ? '...' : '');
+    
+    if (!window.confirm(`Are you sure you want to cancel your RSVP for "${shortTitle}"?`)) {
+      return;
+    }
+
+    try {
+      await deleteRsvp(eventId);
+      alert(`✅ Successfully canceled your RSVP for "${shortTitle}"`);
+      // Refresh the RSVPs list
+      await loadRsvps();
+    } catch (err) {
+      alert(`❌ Failed to cancel RSVP: ${err.message || 'Please try again'}`);
+    }
+  };
+
+  useEffect(() => {
+    loadRsvps();
   }, [user]);
 
   // Diagnostics state
@@ -68,8 +95,32 @@ export default function RSVPs() {
       ) : rsvps.length > 0 ? (
         <div className="grid">
           {rsvps.map((r) => (
-            <div key={r._id || r.event?._id || Math.random()} className="rsvp-card-wrapper">
+            <div key={r._id || r.event._id || Math.random()} className="rsvp-card-wrapper" style={{ position: 'relative' }}>
               <EventCard event={r.event} />
+              <button
+                onClick={() => handleUnRsvp(r.event._id || r.event.id, r.event.title)}
+                style={{
+                  position: 'absolute',
+                  top: '8px',
+                  left: '8px',
+                  backgroundColor: '#212121',
+                  color: '#CFAE70',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                  transition: 'background-color 0.2s',
+                  zIndex: 10
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#2c2c2c'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#212121'}
+                title="Cancel RSVP for this event"
+              >
+                🚫 Cancel
+              </button>
             </div>
           ))}
         </div>

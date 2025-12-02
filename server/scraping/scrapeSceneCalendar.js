@@ -4,6 +4,8 @@ const cheerio = require("cheerio");
 const puppeteer = require("puppeteer");
 const mongoose = require("../mongoose");
 const Event = require("../models/Event");
+const { imageProcessor } = require("../utils/imageProcessor");
+const { classifyEvent } = require("../utils/musicClassifier");
 const { launchBrowser } = require("../utils/puppeteerConfig");
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 
@@ -23,8 +25,27 @@ async function scrapeSceneCalendar() {
   }
 
   let browser = null;
+  let shouldCloseConnection = false;
   try {
-    await mongoose.connect(process.env.MONGO_URI, { dbName: "mymusiccity" });
+    // Check if we already have an active MongoDB connection
+    const connectionStates = {
+      0: 'disconnected',
+      1: 'connected', 
+      2: 'connecting',
+      3: 'disconnecting'
+    };
+    
+    console.log(`MongoDB connection state: ${mongoose.connection.readyState} (${connectionStates[mongoose.connection.readyState]})`);
+    
+    // Only connect if we're completely disconnected
+    if (mongoose.connection.readyState === 0) {
+      console.log("Connecting to MongoDB...");
+      await mongoose.connect(process.env.MONGO_URI, { dbName: "mymusiccity" });
+      shouldCloseConnection = true; // Only close if we opened it
+    } else {
+      console.log("Using existing MongoDB connection...");
+      shouldCloseConnection = false; // Don't close shared connection
+    }
 
     const url = "https://calendar.nashvillescene.com";
     console.log(`Scraping Nashville Scene calendar: ${url}`);
@@ -46,6 +67,39 @@ async function scrapeSceneCalendar() {
         let text = ($el.text() || "").trim();
         // Collapse whitespace
         text = text.replace(/\s+/g, " ").trim();
+        
+        // Enhanced image extraction
+        const images = [];
+        
+        // Direct image sources
+        $el.find("img").each((idx, img) => {
+          const src = $(img).attr("src") || $(img).attr("data-src");
+          if (src && !src.includes('placeholder') && !src.includes('loading')) {
+            images.push(src.startsWith('//') ? 'https:' + src : src);
+          }
+        });
+        
+        // Background images from style attributes
+        $el.find('[style*="background-image"]').each((idx, element) => {
+          const style = $(element).attr('style');
+          if (style) {
+            const match = style.match(/background-image:\s*url\(['"]?(.*?)['"]?\)/);
+            if (match) {
+              images.push(match[1]);
+            }
+          }
+        });
+        
+        // Parent container images
+        const parentContainer = $el.closest('.event, .calendar-item, .listing');
+        if (parentContainer.length) {
+          parentContainer.find('img').each((idx, img) => {
+            const src = $(img).attr('src') || $(img).attr('data-src');
+            if (src && !src.includes('placeholder')) {
+              images.push(src.startsWith('//') ? 'https:' + src : src);
+            }
+          });
+        }
 
         // Prefer aria or img alt if available, otherwise use anchor text
         let title = aria || imgAlt || text;
@@ -79,10 +133,14 @@ async function scrapeSceneCalendar() {
       browser = await launchBrowser();
       const page = await browser.newPage();
       // Set a common desktop user agent to reduce bot detection differences
-      await page.setUserAgent(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
-      );
-      await page.setExtraHTTPHeaders({ "accept-language": "en-US,en;q=0.9" });
+      if (page.setUserAgent && typeof page.setUserAgent === 'function') {
+        await page.setUserAgent(
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+        );
+      }
+      if (page.setExtraHTTPHeaders && typeof page.setExtraHTTPHeaders === 'function') {
+        await page.setExtraHTTPHeaders({ "accept-language": "en-US,en;q=0.9" });
+      }
 
       await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
 
@@ -128,12 +186,58 @@ async function scrapeSceneCalendar() {
           const link = el.href || el.getAttribute('href') || null;
           let dateText = '';
           try {
-            const m = link && link.match(/(\d{4}-\d{2}-\d{2}T\d{2})/);
+            const m = link && link.match(/(\\d{4}-\\d{2}-\\d{2}T\\d{2})/);
             if (m) dateText = m[1];
           } catch (e) {}
           const location = el.querySelector('.venue, .location')?.textContent?.trim() || '';
-          const image = img ? img.src : null;
-          return { title: title || '', dateText, location, image, url: link };
+          
+          // Enhanced image extraction for Puppeteer
+          const images = [];
+          
+          // Direct images
+          const imgElements = el.querySelectorAll('img[src]');
+          imgElements.forEach(img => {
+            if (img.src && !img.src.includes('placeholder') && !img.src.includes('loading')) {
+              images.push(img.src);
+            }
+          });
+          
+          // Data attributes
+          const dataElements = el.querySelectorAll('[data-image], [data-src], [data-background]');
+          dataElements.forEach(element => {
+            const dataSrc = element.dataset.image || element.dataset.src || element.dataset.background;
+            if (dataSrc) images.push(dataSrc);
+          });
+          
+          // Background images
+          const bgElements = el.querySelectorAll('[style*=\"background-image\"]');
+          bgElements.forEach(element => {
+            const style = getComputedStyle(element);
+            const bgImage = style.backgroundImage;
+            if (bgImage && bgImage !== 'none') {
+              const match = bgImage.match(/url\\(['\"]?(.*?)['\"]?\\)/);
+              if (match) images.push(match[1]);
+            }
+          });
+          
+          // Parent container images
+          const parentContainer = el.closest('.event, .calendar-item, .listing');
+          if (parentContainer) {
+            const parentImages = parentContainer.querySelectorAll('img[src]');
+            parentImages.forEach(img => {
+              if (img.src && !img.src.includes('placeholder')) {
+                images.push(img.src);
+              }
+            });
+          }
+          
+          return { 
+            title: title || '', 
+            dateText, 
+            location, 
+            images: [...new Set(images)], // Remove duplicates
+            url: link 
+          };
         });
       });
 
@@ -181,33 +285,82 @@ async function scrapeSceneCalendar() {
         .trim();
     }
 
-    const normalized = events.map((e) => {
+    // Process events with enhanced image handling
+    const normalized = [];
+    for (const [index, e] of events.entries()) {
       let parsedDate = new Date();
       try {
         const maybe = new Date(e.dateText);
         if (!isNaN(maybe)) parsedDate = maybe;
       } catch {}
 
-      return {
+      // Enhanced image processing
+      const eventData = {
+        id: `nashvillescene_${index}`,
+        title: e.title || "Untitled Event",
+        description: "Scraped from Nashville Scene calendar",
+        venue: e.location || "Nashville, TN",
+        date: parsedDate
+      };
+
+      // Process images using the enhanced pipeline
+      let imageResult;
+      if (e.images && e.images.length > 0) {
+        console.log(`Processing ${e.images.length} images for event: ${eventData.title}`);
+        imageResult = await imageProcessor.processEventImages(e.images, eventData);
+      } else if (e.image) {
+        console.log(`Processing single image for event: ${eventData.title}`);
+        imageResult = await imageProcessor.processEventImage(e.image, eventData);
+      } else {
+        console.log(`No images found for event: ${eventData.title}, using fallback`);
+        imageResult = imageProcessor.getFallbackResult(eventData);
+      }
+
+      const normalizedEvent = {
         title: (e.title || "Untitled Event").trim(),
         description: "Scraped from Nashville Scene calendar",
         date: parsedDate,
         location: e.location || "Nashville, TN",
-        image: e.image || null,
+        image: imageResult.url,
+        imageSource: imageResult.source,
+        imageQuality: imageResult.quality,
+        imageProcessedAt: new Date(),
         url: e.url || url,
         normalizedTitle: normalizeTitle(e.title || ""),
         createdBy: null,
         source: "nashvillescene",
       };
+
+      normalized.push(normalizedEvent);
+      
+      // Add small delay to avoid overwhelming image processing
+      if (index < events.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    // Filter for music events only and add genre classification
+    const musicEvents = normalized.filter(event => {
+      const classification = classifyEvent(event);
+      if (classification.isMusic) {
+        // Add music-specific fields
+        event.genre = classification.genre;
+        event.musicType = classification.musicType;
+        event.venue = classification.venue;
+        return true;
+      }
+      return false;
     });
 
-    if (normalized.length === 0) {
-      console.log("No normalized events to save.");
+    console.log(`Filtered ${normalized.length} total events to ${musicEvents.length} music events`);
+
+    if (musicEvents.length === 0) {
+      console.log("No music events to save.");
       return;
     }
 
-    const titles = normalized.map((e) => e.title);
-    const urls = normalized.map((e) => e.url).filter(Boolean);
+    const titles = musicEvents.map((e) => e.title);
+    const urls = musicEvents.map((e) => e.url).filter(Boolean);
 
     const queryOr = [];
     if (titles.length) queryOr.push({ title: { $in: titles } });
@@ -217,7 +370,7 @@ async function scrapeSceneCalendar() {
     const existingTitles = new Set(existing.map((x) => x.title));
     const existingUrls = new Set(existing.map((x) => x.url).filter(Boolean));
 
-    const newEvents = normalized.filter((e) => {
+    const newEvents = musicEvents.filter((e) => {
       if (existingUrls.has(e.url)) return false;
       if (existingTitles.has(e.title)) return false;
       return true;
@@ -241,8 +394,13 @@ async function scrapeSceneCalendar() {
     console.error("scrapeSceneCalendar failed:", err && err.message ? err.message : err);
   } finally {
     if (browser) await browser.close();
-    await mongoose.connection.close();
-    console.log("scrapeSceneCalendar finished and DB closed.");
+    // Only close connection if we opened it (running standalone)
+    if (shouldCloseConnection) {
+      await mongoose.connection.close();
+      console.log("scrapeSceneCalendar finished and DB closed.");
+    } else {
+      console.log("scrapeSceneCalendar finished, keeping shared DB connection open.");
+    }
   }
 }
 

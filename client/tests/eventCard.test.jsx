@@ -36,6 +36,40 @@ it("renders correctly", () => {
   expect(screen.getByText(new Date(mockEvent.date).toLocaleDateString())).toBeInTheDocument();
 });
 
+it("shows server-provided counts (rsvpCount/commentCount)", () => {
+  const eventWithCounts = { ...mockEvent, rsvpCount: 5, commentCount: 2 };
+  render(
+    <MemoryRouter>
+      <EventCard event={eventWithCounts} />
+    </MemoryRouter>
+  );
+
+  // counts are rendered as plain numbers beside icons
+  expect(screen.getByText("5")).toBeInTheDocument();
+  expect(screen.getByText("2")).toBeInTheDocument();
+});
+
+it("falls back to rsvps/comments array counts", () => {
+  const eventWithArrays = {
+    ...mockEvent,
+    rsvps: [{ id: 1 }, { id: 2 }],
+    comments: [
+      { _id: "c1", text: "c1", replies: [{ _id: "r1" }] },
+    ],
+  };
+
+  render(
+    <MemoryRouter>
+      <EventCard event={eventWithArrays} />
+    </MemoryRouter>
+  );
+
+  // attendeeCount should show 2
+  expect(screen.getByText("2")).toBeInTheDocument();
+  // commentCount should show 2 (1 comment + 1 reply)
+  expect(screen.getByText("2")).toBeInTheDocument();
+});
+
 it ("renders the edge case", () => {
   render(
     <MemoryRouter>

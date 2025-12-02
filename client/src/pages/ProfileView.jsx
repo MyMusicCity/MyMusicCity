@@ -3,6 +3,26 @@ import { useParams, useNavigate } from "react-router-dom";
 import { getUserById } from "../api";
 import "../styles.css";
 
+// Helper function for Vanderbilt-themed avatar generation (First letter only)
+const getAvatarText = (username, email, fullName) => {
+  // Try to get first letter from full name first
+  if (fullName && fullName.trim()) {
+    return fullName.trim()[0].toUpperCase();
+  }
+  
+  // Try to get first letter from username
+  if (username && username.trim()) {
+    return username.trim()[0].toUpperCase();
+  }
+  
+  // Fallback to email
+  if (email && email.trim()) {
+    return email[0].toUpperCase();
+  }
+  
+  return "?";
+};
+
 export default function ProfileView() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -37,7 +57,7 @@ export default function ProfileView() {
   return (
     <div className="profile-page">
       <div className="profile-card">
-        <div className="profile-avatar">{user.username ? user.username[0].toUpperCase() : "?"}</div>
+        <div className="profile-avatar">{getAvatarText(user.username, user.email, null)}</div>
         <h2 className="profile-name">{user.username}</h2>
         <p><strong>Email:</strong> {user.email}</p>
         <p>Member since: {new Date(user.createdAt).toLocaleDateString()}</p>
