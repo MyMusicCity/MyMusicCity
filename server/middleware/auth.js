@@ -26,8 +26,32 @@ function getKey(header, callback) {
   if (!client) {
     return callback(new Error('Auth0 not configured'));
   }
-  client.getSigningKey(header.kid, (err, key) => {
+  
+  // Handle tokens without KID more gracefully
+  const keyId = header.kid;
+  if (!keyId) {
+    console.warn('⚠️ Token missing KID header, attempting to get default key');
+    // Try to get first available key when no KID is specified
+    client.getKeys((err, keys) => {
+      if (err) {
+        console.error('❌ Failed to get keys from JWKS:', err.message);
+        return callback(err);
+      }
+      if (!keys || keys.length === 0) {
+        return callback(new Error('No keys available in JWKS'));
+      }
+      // Use the first key if no KID specified
+      const firstKey = keys[0];
+      const signingKey = firstKey.publicKey || firstKey.rsaPublicKey;
+      console.log('✅ Using first available key for token without KID');
+      callback(null, signingKey);
+    });
+    return;
+  }
+  
+  client.getSigningKey(keyId, (err, key) => {
     if (err) {
+      console.error('❌ Failed to get signing key:', err.message);
       return callback(err);
     }
     const signingKey = key.publicKey || key.rsaPublicKey;
@@ -55,7 +79,11 @@ module.exports = function auth(req, res, next) {
     jwt.verify(token, getKey, {
       audience: process.env.AUTH0_AUDIENCE,
       issuer: `https://${process.env.AUTH0_DOMAIN}/`,
-      algorithms: ['RS256']
+      algorithms: ['RS256'],
+      // Add clock tolerance for timestamp drift
+      clockTolerance: 30,
+      // Add maximum age check
+      maxAge: '24h'
     }, async (err, decoded) => {
       if (!err && decoded) {
         // Successfully verified Auth0 token

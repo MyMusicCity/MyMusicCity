@@ -24,10 +24,22 @@ class ImageProcessor {
   // Start periodic cache cleanup
   startCacheCleanup() {
     const config = ConfigManager.getImageProcessingConfig();
-    if (config.cacheEnabled) {
-      setInterval(() => {
+    if (config.cacheEnabled && process.env.NODE_ENV !== 'test') {
+      // Only start cleanup in non-test environments to prevent Jest hanging
+      this.cleanupInterval = setInterval(() => {
         this.cleanupCache();
       }, config.cacheTTL / 4); // Cleanup every quarter of TTL
+      
+      // Make sure the interval doesn't keep Node.js alive unnecessarily
+      this.cleanupInterval.unref();
+    }
+  }
+  
+  // Stop cache cleanup (useful for tests and graceful shutdown)
+  stopCacheCleanup() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
     }
   }
 
@@ -359,6 +371,13 @@ const imageExtractionStrategies = {
 
 // Create singleton instance
 const imageProcessor = new ImageProcessor();
+
+// Graceful cleanup for tests
+process.on('exit', () => {
+  if (imageProcessor) {
+    imageProcessor.stopCacheCleanup();
+  }
+});
 
 module.exports = {
   ImageProcessor,

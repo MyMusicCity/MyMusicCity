@@ -74,19 +74,35 @@ async function findOrCreateAuth0UserAtomic(auth0Id, email, retryCount = 0) {
     throw new Error(`USER_CREATION_FAILED: Maximum retries (${MAX_RETRIES}) exceeded`);
   }
 
-  // Validate required parameters
+  // Validate required parameters with comprehensive checks
   if (!auth0Id || typeof auth0Id !== 'string' || auth0Id.trim().length === 0) {
     throw new Error('INVALID_AUTH0_ID: Auth0 ID is required and must be a non-empty string');
   }
   if (!email || typeof email !== 'string' || !email.includes('@')) {
     throw new Error('INVALID_EMAIL: Valid email is required');
   }
-
+  
+  // Additional validation for malformed inputs
+  const trimmedAuth0Id = auth0Id.trim();
+  if (trimmedAuth0Id.length > 255) {
+    throw new Error('INVALID_AUTH0_ID: Auth0 ID too long (max 255 characters)');
+  }
+  
+  // Email format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const normalizedEmail = email.toLowerCase().trim();
-  const idempotencyKey = createIdempotencyKey(auth0Id, normalizedEmail);
+  if (!emailRegex.test(normalizedEmail)) {
+    throw new Error('INVALID_EMAIL: Email format is invalid');
+  }
+  
+  if (normalizedEmail.length > 254) {
+    throw new Error('INVALID_EMAIL: Email too long (max 254 characters)');
+  }
+  
+  const idempotencyKey = createIdempotencyKey(trimmedAuth0Id, normalizedEmail);
   
   console.log(`🔄 Attempting user creation/lookup (attempt ${retryCount + 1}/${MAX_RETRIES + 1}):`, {
-    auth0Id,
+    auth0Id: trimmedAuth0Id,
     email: normalizedEmail,
     idempotencyKey: idempotencyKey.substr(0, 8) + '...'
   });
@@ -96,7 +112,7 @@ async function findOrCreateAuth0UserAtomic(auth0Id, email, retryCount = 0) {
   try {
     const result = await session.withTransaction(async () => {
       // Step 1: Check for existing user by auth0Id (highest priority)
-      let existingUser = await User.findOne({ auth0Id }).session(session);
+      let existingUser = await User.findOne({ auth0Id: trimmedAuth0Id }).session(session);
       if (existingUser) {
         console.log('✅ Found existing user by auth0Id:', {
           username: existingUser.username,
@@ -127,7 +143,7 @@ async function findOrCreateAuth0UserAtomic(auth0Id, email, retryCount = 0) {
           console.log('🔗 Linking existing account with Auth0 ID:', existingUser.username);
           
           // Atomically link existing account with Auth0
-          existingUser.auth0Id = auth0Id;
+          existingUser.auth0Id = trimmedAuth0Id;
           existingUser.idempotencyKey = idempotencyKey;
           existingUser.accountState = ACCOUNT_STATES.ACTIVE;
           existingUser.auth0LinkedAt = new Date();
@@ -136,11 +152,11 @@ async function findOrCreateAuth0UserAtomic(auth0Id, email, retryCount = 0) {
           console.log('✅ Successfully linked existing account with Auth0');
           return existingUser;
           
-        } else if (existingUser.auth0Id !== auth0Id) {
+        } else if (existingUser.auth0Id !== trimmedAuth0Id) {
           // Account conflict: same email but different auth0Id
           console.error('⚠️ Account conflict detected:', {
             existingAuth0Id: existingUser.auth0Id,
-            attemptedAuth0Id: auth0Id,
+            attemptedAuth0Id: trimmedAuth0Id,
             email: normalizedEmail
           });
           throw new Error(`ACCOUNT_CONFLICT: Email ${normalizedEmail} is already associated with a different Auth0 account (${existingUser.auth0Id}). Please use account cleanup or contact support.`);
@@ -158,7 +174,7 @@ async function findOrCreateAuth0UserAtomic(auth0Id, email, retryCount = 0) {
         username: tempUsername,
         email: normalizedEmail,
         password: 'auth0-user', // Placeholder for Auth0 users
-        auth0Id: auth0Id,
+        auth0Id: trimmedAuth0Id,
         idempotencyKey: idempotencyKey,
         accountState: ACCOUNT_STATES.CREATING,
         year: null,
@@ -191,7 +207,7 @@ async function findOrCreateAuth0UserAtomic(auth0Id, email, retryCount = 0) {
       
       console.log('✅ Successfully created new Auth0 user:', {
         username: tempUsername,
-        auth0Id: auth0Id,
+        auth0Id: trimmedAuth0Id,
         email: normalizedEmail,
         state: ACCOUNT_STATES.PENDING,
         idempotencyKey: idempotencyKey.substr(0, 8) + '...'
@@ -237,7 +253,7 @@ async function findOrCreateAuth0UserAtomic(auth0Id, email, retryCount = 0) {
   } catch (error) {
     console.error(`❌ Error in atomic user creation (attempt ${retryCount + 1}):`, {
       error: error.message,
-      auth0Id,
+      auth0Id: trimmedAuth0Id,
       email: normalizedEmail,
       errorCode: error.code,
       errorName: error.name
@@ -305,17 +321,37 @@ async function cleanupOrphanedUsers() {
   try {
     console.log('🧹 Starting orphaned user cleanup...');
     
+    // Check if database connection is healthy
+    if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+      console.warn('⚠️ Database not connected, skipping cleanup');
+      return { skipped: true, reason: 'database_not_connected' };
+    }
+    
     // Find users stuck in CREATING state for more than 15 minutes
     const orphanedUsers = await User.find({
       accountState: ACCOUNT_STATES.CREATING,
       createdAt: { $lt: cutoffTime }
-    });
+    }).limit(100); // Limit batch size for performance
     
     console.log(`Found ${orphanedUsers.length} orphaned users to cleanup`);
     
-    for (const user of orphanedUsers) {
-      console.log(`Cleaning up orphaned user: ${user.username} (created: ${user.createdAt})`);
-      await User.findByIdAndDelete(user._id);
+    const cleanupResults = {
+      orphanedCleaned: 0,
+      errorsCleaned: 0,
+      errors: []
+    };
+    
+    // Cleanup orphaned users in batches
+    if (orphanedUsers.length > 0) {
+      try {
+        const orphanedIds = orphanedUsers.map(u => u._id);
+        const deleteResult = await User.deleteMany({ _id: { $in: orphanedIds } });
+        cleanupResults.orphanedCleaned = deleteResult.deletedCount;
+        console.log(`✅ Cleaned up ${deleteResult.deletedCount} orphaned users`);
+      } catch (deleteError) {
+        console.error('❌ Failed to delete orphaned users:', deleteError.message);
+        cleanupResults.errors.push(`Orphaned deletion failed: ${deleteError.message}`);
+      }
     }
     
     // Also cleanup users in ERROR state older than 1 hour
@@ -323,19 +359,28 @@ async function cleanupOrphanedUsers() {
     const errorUsers = await User.find({
       accountState: ACCOUNT_STATES.ERROR,
       createdAt: { $lt: errorCutoffTime }
-    });
+    }).limit(100);
     
     console.log(`Found ${errorUsers.length} error users to cleanup`);
     
-    for (const user of errorUsers) {
-      console.log(`Cleaning up error user: ${user.username} (created: ${user.createdAt})`);
-      await User.findByIdAndDelete(user._id);
+    if (errorUsers.length > 0) {
+      try {
+        const errorIds = errorUsers.map(u => u._id);
+        const deleteResult = await User.deleteMany({ _id: { $in: errorIds } });
+        cleanupResults.errorsCleaned = deleteResult.deletedCount;
+        console.log(`✅ Cleaned up ${deleteResult.deletedCount} error users`);
+      } catch (deleteError) {
+        console.error('❌ Failed to delete error users:', deleteError.message);
+        cleanupResults.errors.push(`Error deletion failed: ${deleteError.message}`);
+      }
     }
     
-    console.log('✅ Orphaned user cleanup completed');
+    console.log('✅ Orphaned user cleanup completed:', cleanupResults);
+    return cleanupResults;
     
   } catch (error) {
     console.error('❌ Failed to cleanup orphaned users:', error.message);
+    return { error: error.message, completed: false };
   }
 }
 

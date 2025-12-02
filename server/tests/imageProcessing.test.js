@@ -215,7 +215,39 @@ async function runAllTests() {
   }
 }
 
-// Run tests if this file is executed directly
+// Jest test integration
+describe('Image Processing Integration', () => {
+  test('should validate image URLs', async () => {
+    // Run the custom test function and check for errors
+    try {
+      await testImageValidation();
+      expect(true).toBe(true); // Test passed if no error thrown
+    } catch (error) {
+      // If test function fails, make Jest test fail
+      throw new Error(`Image validation test failed: ${error.message}`);
+    }
+  });
+
+  test('should generate enhanced event images', async () => {
+    try {
+      await testEnhancedEventImages();
+      expect(true).toBe(true);
+    } catch (error) {
+      throw new Error(`Enhanced event images test failed: ${error.message}`);
+    }
+  });
+
+  test('should map venues correctly', async () => {
+    try {
+      await testVenueMapping();
+      expect(true).toBe(true);
+    } catch (error) {
+      throw new Error(`Venue mapping test failed: ${error.message}`);
+    }
+  });
+});
+
+// Run tests if this file is executed directly (for standalone testing)
 if (require.main === module) {
   runAllTests().then(() => {
     console.log('\nTest suite finished.');

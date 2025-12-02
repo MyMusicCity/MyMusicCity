@@ -49,15 +49,37 @@ async function runManualCleanup() {
   try {
     console.log('🧹 Running manual user cleanup...');
     const result = await cleanupOrphanedUsers();
-    console.log('✅ Manual user cleanup completed');
+    console.log('✅ Manual user cleanup completed:', result);
     return result;
   } catch (error) {
     console.error('❌ Manual user cleanup failed:', error.message);
-    throw error;
+    // Don't re-throw in production to avoid API errors
+    if (process.env.NODE_ENV === 'test') {
+      throw error;
+    }
+    return { error: error.message, success: false };
+  }
+}
+
+/**
+ * Graceful cleanup for test environments
+ */
+async function stopCleanupJob() {
+  try {
+    console.log('🛑 Stopping cleanup job gracefully...');
+    // Clear any running intervals/timeouts
+    if (global.cleanupInterval) {
+      clearInterval(global.cleanupInterval);
+      global.cleanupInterval = null;
+    }
+    console.log('✅ Cleanup job stopped');
+  } catch (error) {
+    console.error('❌ Failed to stop cleanup job:', error.message);
   }
 }
 
 module.exports = {
   startCleanupJob,
-  runManualCleanup
+  runManualCleanup,
+  stopCleanupJob
 };
