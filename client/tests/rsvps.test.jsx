@@ -31,6 +31,7 @@ describe("RSVP component", () => {
     createdAt: "2024-05-01T00:00:00Z",
   };
   const mockEvent = {
+    id: "123",
     title: "title"
   };
   
@@ -42,12 +43,7 @@ describe("RSVP component", () => {
   ];
 
   beforeEach(() => {
-    api.getUserById.mockReset();
-    api.getMeRsvps.mockReset();
-    // Default to resolving to an empty array so tests that don't explicitly
-    // set a return value don't hit `undefined.then`.
-    api.getMeRsvps.mockResolvedValue([]);
-    mockNavigate.mockReset();
+    jest.clearAllMocks();
   });
 
   test("shows login prompt when user is not logged in", () => {
@@ -76,12 +72,16 @@ describe("RSVP component", () => {
   test("renders user with RSVP after loading", async () => {
     api.getMeRsvps.mockResolvedValueOnce(mockRsvps);
     render(
-      <MemoryRouter>
-        <AuthContext.Provider value={{ user: mockUser }}>
-          <RSVPs />
-        </AuthContext.Provider>
-      </MemoryRouter>
-    );
+    <MemoryRouter>
+      <AuthContext.Provider value={{
+        user: mockUser,
+        isAuthenticated: true,
+        isLoading: false
+      }}>
+        <RSVPs />
+      </AuthContext.Provider>
+    </MemoryRouter>
+  );
 
     const titleNode = await screen.findByText("title");
     expect(titleNode).toBeInTheDocument();
