@@ -771,19 +771,11 @@ app.get("/api/me", auth, async (req, res) => {
       user = req.user.mongoUser.toObject ? req.user.mongoUser.toObject() : req.user.mongoUser;
       delete user.password;
     } else {
-      // Fallback: look up by user ID (should be MongoDB ObjectId now)
-      if (mongoose.Types.ObjectId.isValid(authUserId)) {
-        user = await User.findById(authUserId)
-          .select("-password")
-          .lean()
-          .exec();
-      } else {
-        // Legacy: might be Auth0 ID, try auth0Id lookup
-        user = await User.findOne({ auth0Id: authUserId })
-          .select("-password")
-          .lean()
-          .exec();
-      }
+      // Direct lookup since req.user.id is guaranteed to be MongoDB ObjectId
+      user = await User.findById(authUserId)
+        .select("-password")
+        .lean()
+        .exec();
     }
 
     if (!user) {
@@ -831,11 +823,8 @@ app.put("/api/me/profile", auth, async (req, res) => {
     // Prefer mongoUser from auth middleware (most reliable for Auth0 users)
     if (req.user?.mongoUser) {
       user = req.user.mongoUser;
-    } else if (authUserId.startsWith('auth0|') || authUserId.includes('|')) {
-      // Auth0 ID - lookup by auth0Id
-      user = await User.findOne({ auth0Id: authUserId });
     } else {
-      // Direct MongoDB ObjectId lookup
+      // Direct MongoDB ObjectId lookup since req.user.id is guaranteed to be valid ObjectId
       user = await User.findById(authUserId);
     }
 
@@ -914,11 +903,8 @@ app.delete("/api/me/account", auth, async (req, res) => {
     if (req.user?.mongoUser) {
       user = req.user.mongoUser;
     } else {
-      if (mongoose.Types.ObjectId.isValid(authUserId)) {
-        user = await User.findById(authUserId);
-      } else {
-        user = await User.findOne({ auth0Id: authUserId });
-      }
+      // Direct lookup since req.user.id is guaranteed to be MongoDB ObjectId
+      user = await User.findById(authUserId);
     }
 
     if (!user) {
@@ -1058,17 +1044,8 @@ app.get("/api/me/rsvps", auth, async (req, res) => {
     if (req.user?.mongoUser) {
       userId = req.user.mongoUser._id;
     } else {
-      // Fallback: look up by user ID (should be MongoDB ObjectId now)
-      if (mongoose.Types.ObjectId.isValid(authUserId)) {
-        userId = authUserId;
-      } else {
-        // Legacy: might be Auth0 ID, try auth0Id lookup
-        const user = await User.findOne({ auth0Id: authUserId });
-        if (!user) {
-          return res.status(404).json({ error: "User not found" });
-        }
-        userId = user._id;
-      }
+      // Direct lookup since req.user.id is guaranteed to be MongoDB ObjectId
+      userId = authUserId;
     }
 
     const rsvps = await Rsvp.find({ user: userId })
@@ -1112,21 +1089,15 @@ app.post(
       let userId = authUserId;
       let foundUser = null;
 
-      // Use mongoUser from auth middleware if available (preferred for Auth0)
+      // Since auth middleware ensures req.user.id is always MongoDB ObjectId,
+      // we can directly use it. mongoUser is available as backup for user details.
       if (req.user?.mongoUser) {
         foundUser = req.user.mongoUser;
         userId = foundUser._id;
       } else {
-        // Fallback: look up by user ID
-        if (mongoose.Types.ObjectId.isValid(authUserId)) {
-          foundUser = await User.findById(authUserId).select("_id username email year major");
-        } else {
-          // Auth0 ID lookup
-          foundUser = await User.findOne({ auth0Id: authUserId }).select("_id username email year major");
-          if (foundUser) {
-            userId = foundUser._id;
-          }
-        }
+        // Direct lookup by MongoDB ObjectId (req.user.id is guaranteed to be valid ObjectId)
+        foundUser = await User.findById(authUserId).select("_id username email year major");
+        userId = authUserId;
       }
 
       if (!foundUser) {
@@ -1182,17 +1153,9 @@ app.delete("/api/rsvps/event/:eventId", auth, async (req, res) => {
     const authUserId = req.user?.id;
     if (!authUserId) return res.status(401).json({ error: "Unauthorized" });
 
-    let userId = authUserId;
-
-    // If this looks like an Auth0 ID, find the corresponding User record
-    if (authUserId.startsWith('auth0|') || authUserId.includes('|')) {
-      const User = require('./models/User');
-      const user = await User.findOne({ auth0Id: authUserId });
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      userId = user._id;
-    }
+    // Since auth middleware ensures req.user.id is always MongoDB ObjectId,
+    // we can use it directly without Auth0 ID detection
+    const userId = authUserId;
 
     const deleted = await Rsvp.findOneAndDelete({ event: eventId, user: userId })
       .lean()
