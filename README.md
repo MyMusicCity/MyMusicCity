@@ -1,17 +1,17 @@
-# MyMusicCity
+# MyMusicCity 🎵
 
-A web application for discovering and managing music events in Nashville, built with React, Node.js, and MongoDB.
+A modern web application for discovering and managing music events in Nashville, built with React, Node.js, and MongoDB.
 
-## Project Overview
+## 🎯 Project Overview
 
-MyMusicCity is an event management platform that allows users to:
+MyMusicCity is a comprehensive event management platform that allows users to:
 - Discover upcoming music events in Nashville
 - RSVP to events and manage attendance
 - Comment and interact with other attendees  
 - View event details, venues, and dates
 - Authenticate securely with Auth0
 
-## Features
+## 🚀 Features
 
 ### Core Functionality
 - **Event Discovery**: Browse curated music events with rich details
@@ -26,11 +26,11 @@ MyMusicCity is an event management platform that allows users to:
 - **Robust API**: RESTful backend with comprehensive endpoints
 - **Modern UI**: Clean, intuitive interface with Vanderbilt branding
 
-## Technology Stack
+## 🛠️ Technology Stack
 
 ### Frontend
-- **React** - Component-based UI library
-- **Auth0** - Authentication and user management
+- **React** - Modern component-based UI library
+- **Auth0** - Secure authentication and user management
 - **CSS3** - Custom styling with responsive design
 - **React Router** - Client-side routing
 
@@ -45,7 +45,7 @@ MyMusicCity is an event management platform that allows users to:
 - **Render** - Backend API hosting
 - **MongoDB Atlas** - Cloud database hosting
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 MyMusicCity/
@@ -65,7 +65,7 @@ MyMusicCity/
 └── README.md            # Project overview
 ```
 
-## Installation & Setup
+## 🔧 Installation & Setup
 
 For detailed installation instructions, see [INSTALLATION.md](INSTALLATION.md)
 
@@ -98,7 +98,7 @@ For detailed installation instructions, see [INSTALLATION.md](INSTALLATION.md)
    cd client && npm start
    ```
 
-## Deployment
+## 🚀 Deployment
 
 For production deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md)
 
@@ -109,7 +109,7 @@ For production deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md)
 ### Environment Variables
 See `INSTALLATION.md` and `DEPLOYMENT.md` for complete environment configuration guides.
 
-## API Documentation
+## 📖 API Documentation
 
 ### Main Endpoints
 - `GET /api/events` - Retrieve all events
@@ -120,7 +120,7 @@ See `INSTALLATION.md` and `DEPLOYMENT.md` for complete environment configuration
 ### Authentication
 All user-specific endpoints require Auth0 JWT tokens in the Authorization header.
 
-## Testing
+## 🧪 Testing
 
 ```bash
 # Run all tests
@@ -133,19 +133,19 @@ cd client && npm test
 cd server && npm test
 ```
 
-## Team Members
+## 👥 Team Members
 
 - **Emma Chang** - emma.j.chang@vanderbilt.edu
 - **Annette Ma** - annette.l.ma@vanderbilt.edu  
 - **Jake Seals** - jake.d.seals@vanderbilt.edu
 
-## Development Timeline
+## 📅 Development Timeline
 
 **Sprint 1** (September 25) - Tech stack setup and UX skeleton  
 **Sprint 2** (October 21) - Web scraping implementation and core features  
 **Sprint 3** (November 11) - UI design and optimization  
 **Final Submission** (December 2) - Production deployment and presentation
 
-## License
+## 📄 License
 
 This project is created for educational purposes as part of Vanderbilt University coursework.
