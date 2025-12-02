@@ -203,7 +203,7 @@ module.exports = function auth(req, res, next) {
           const isProfileComplete = mongoUser.year && mongoUser.major;
           
           req.user = { 
-            id: decoded.sub,
+            id: mongoUser._id,
             email: userEmail,
             username: mongoUser.username,
             auth0Id: decoded.sub,
