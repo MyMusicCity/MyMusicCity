@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { findOrCreateAuth0UserAtomic } = require("../utils/atomicUserCreation");
+const { isVanderbiltEmail } = require("../utils/emailValidation");
 
 // Try to load jwks-rsa for Auth0 support
 let jwksClient = null;
@@ -99,7 +100,7 @@ module.exports = function auth(req, res, next) {
             });
           }
           
-          // Email validation with better fallback handling
+          // Email validation with better fallback handling and Vanderbilt auto-approval
           let userEmail = decoded.email || decoded['https://myapp/email'];
           
           // Validate email format if present
@@ -113,10 +114,17 @@ module.exports = function auth(req, res, next) {
             userEmail = `${decoded.sub.replace(/[^a-zA-Z0-9]/g, '_')}@auth0.temp`;
           }
           
+          // AUTO-APPROVE: All vanderbilt.edu emails are automatically valid
+          const isVanderbilt = isVanderbiltEmail(userEmail);
+          if (isVanderbilt) {
+            console.log('✅ Auto-approved Vanderbilt email in Auth0 token:', userEmail);
+          }
+          
           console.log('✅ Token claims validated:', {
             sub: decoded.sub,
             email: userEmail,
-            hasEmail: !!decoded.email
+            hasEmail: !!decoded.email,
+            isVanderbiltEmail: isVanderbilt
           });
           
           // Use new atomic user creation system

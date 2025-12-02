@@ -2,6 +2,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { validateEmailWithVanderbiltApproval, logEmailValidation } = require("../utils/emailValidation");
 
 const router = express.Router();
 
@@ -11,9 +12,23 @@ router.post("/signup", async (req, res) => {
     const { username, email, password, year, major } = req.body;
 
     if (!username || !email || !password)
-      return res.status(400).json({ error: "All fields are required." });
+      return res.status(400).json({ error: \"All fields are required.\" });
 
-    const existingUser = await User.findOne({ email });
+    // Comprehensive email validation with Vanderbilt auto-approval
+    const emailValidation = validateEmailWithVanderbiltApproval(email);
+    if (!emailValidation.isValid) {
+      return res.status(400).json({ 
+        error: \"Invalid email format.\",
+        details: emailValidation.reason 
+      });
+    }
+    
+    // Log email validation result for monitoring
+    logEmailValidation(emailValidation, 'signup');
+    
+    const normalizedEmail = emailValidation.normalizedEmail;
+
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser)
       return res.status(400).json({ error: "Email already registered." });
 
@@ -21,14 +36,19 @@ router.post("/signup", async (req, res) => {
 
     const newUser = new User({
       username,
-      email,
+      email: normalizedEmail,
       password: hashed,
       year,
       major,
     });
     await newUser.save();
 
-    res.status(201).json({ message: "User created successfully." });
+    res.status(201).json({ 
+      message: \"User created successfully.\",
+      emailApproved: emailValidation.approved,
+      emailType: emailValidation.isVanderbilt ? 'vanderbilt' : 'external',
+      autoApproved: emailValidation.isVanderbilt
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Signup failed." });

@@ -70,12 +70,17 @@ export function AuthProvider({ children }) {
       return true; // Already validated this email recently
     }
     
-    const isValid = user?.email?.endsWith('@vanderbilt.edu');
-    if (isValid) {
+    // AUTO-APPROVE: All vanderbilt.edu emails are automatically valid (no verification needed)
+    const isVanderbiltEmail = user?.email?.endsWith('@vanderbilt.edu');
+    if (isVanderbiltEmail) {
+      console.log('✅ Auto-approved Vanderbilt email:', user.email);
       setLastEmailValidation(currentEmail);
+      return true;
     }
     
-    return isValid;
+    // For non-Vanderbilt emails, still require validation
+    console.log('❌ Non-Vanderbilt email detected:', user.email);
+    return false;
   };
 
   // Get token from Auth0

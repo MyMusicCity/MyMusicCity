@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
+const { validateEmailWithVanderbiltApproval, logEmailValidation } = require('./emailValidation');
 
 // Global counter collection for atomic username generation
 const CounterSchema = new mongoose.Schema({
@@ -88,16 +89,16 @@ async function findOrCreateAuth0UserAtomic(auth0Id, email, retryCount = 0) {
     throw new Error('INVALID_AUTH0_ID: Auth0 ID too long (max 255 characters)');
   }
   
-  // Email format validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const normalizedEmail = email.toLowerCase().trim();
-  if (!emailRegex.test(normalizedEmail)) {
-    throw new Error('INVALID_EMAIL: Email format is invalid');
+  // Comprehensive email validation with Vanderbilt auto-approval
+  const emailValidation = validateEmailWithVanderbiltApproval(email);
+  if (!emailValidation.isValid) {
+    throw new Error(`INVALID_EMAIL: ${emailValidation.reason}`);
   }
   
-  if (normalizedEmail.length > 254) {
-    throw new Error('INVALID_EMAIL: Email too long (max 254 characters)');
-  }
+  // Log email validation result for monitoring
+  logEmailValidation(emailValidation, 'atomic-user-creation');
+  
+  const normalizedEmail = emailValidation.normalizedEmail;
   
   const idempotencyKey = createIdempotencyKey(trimmedAuth0Id, normalizedEmail);
   
