@@ -80,7 +80,7 @@ async function getAuthHeaders() {
   return headers;
 }
 
-// Helper to handle API errors consistently
+// Helper to handle API errors consistently with Auth0 context awareness
 async function handleApiError(response, context = 'API request') {
   let errorData = null;
   try {
@@ -91,6 +91,19 @@ async function handleApiError(response, context = 'API request') {
       error: 'RESPONSE_PARSE_ERROR', 
       message: `${context} failed with status ${response.status}` 
     };
+  }
+  
+  // Handle Auth0-specific error scenarios
+  if (response.status === 401) {
+    console.warn(`🔐 Authentication failed for ${context}:`, errorData);
+    // Don't throw for 401s during profile operations to prevent logout loops
+    if (context.includes('profile') || context.includes('Profile')) {
+      console.log('📝 Suppressing 401 error during profile operation to prevent logout');
+    }
+  }
+  
+  if (response.status === 403 && errorData?.action === 're-authenticate') {
+    console.warn(`🚫 Re-authentication required for ${context}`);
   }
   
   // Create comprehensive error with status and context
