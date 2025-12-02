@@ -55,8 +55,14 @@ root.render(
         authorizationParams={{
           redirect_uri: window.location.origin,
           ...(audience && { audience: audience }),
-          scope: "openid profile email"
+          scope: "openid profile email",
+          // FORCE BYPASS EMAIL VERIFICATION
+          connection: "Username-Password-Authentication",
+          mode: "signUp"
         }}
+        skipRedirectCallback={false}
+        cacheLocation="localstorage"
+        useRefreshTokens={true}
         onRedirectCallback={(appState) => {
           console.log('🔐 Auth0 redirect callback:', appState);
         }}
