@@ -1,9 +1,7 @@
 module.exports = {
   displayName: "client",
   testEnvironment: "jsdom",
-  transform: {
-    "^.+\\.[tj]sx?$": "<rootDir>/../wrapper.js"
-  },
+  "setupFilesAfterEnv": ["<rootDir>/jest.setup.js"],
   moduleFileExtensions: ["js", "jsx", "json"],
   moduleNameMapper: {
     "^react$": "<rootDir>/node_modules/react",
