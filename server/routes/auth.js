@@ -12,13 +12,13 @@ router.post("/signup", async (req, res) => {
     const { username, email, password, year, major } = req.body;
 
     if (!username || !email || !password)
-      return res.status(400).json({ error: \"All fields are required.\" });
+      return res.status(400).json({ error: "All fields are required." });
 
     // Comprehensive email validation with Vanderbilt auto-approval
     const emailValidation = validateEmailWithVanderbiltApproval(email);
     if (!emailValidation.isValid) {
       return res.status(400).json({ 
-        error: \"Invalid email format.\",
+        error: "Invalid email format.",
         details: emailValidation.reason 
       });
     }
@@ -44,7 +44,7 @@ router.post("/signup", async (req, res) => {
     await newUser.save();
 
     res.status(201).json({ 
-      message: \"User created successfully.\",
+      message: "User created successfully.",
       emailApproved: emailValidation.approved,
       emailType: emailValidation.isVanderbilt ? 'vanderbilt' : 'external',
       autoApproved: emailValidation.isVanderbilt

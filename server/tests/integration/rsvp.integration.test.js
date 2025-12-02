@@ -33,7 +33,7 @@ describe('RSVP integration (signup -> rsvp -> attendees)', () => {
   });
 
   it('should signup, create event, rsvp and list attendee', async () => {
-  const email = 'inttest@example.com';
+  const email = 'inttest@vanderbilt.edu'; // Use Vanderbilt email for auto-approval
     const username = 'intuser';
     const password = 'password123';
 
