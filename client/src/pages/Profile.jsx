@@ -6,6 +6,12 @@ import { AuthContext } from "../AuthContext";
 import { getCurrentUser, updateUserProfile, deleteAccount } from "../api";
 import "../styles.css";
 
+// Helper function to detect if username is temporary (auto-generated)
+const isTemporaryUsername = (username) => {
+  if (!username || typeof username !== 'string') return false;
+  return username.startsWith('tempuser');
+};
+
 // Helper function for Vanderbilt-themed avatar generation (First letter only)
 const getAvatarText = (username, email, fullName) => {
   // Try to get first letter from username first
@@ -62,8 +68,9 @@ export default function Profile() {
         const isComplete = userData.username && userData.email && userData.year && userData.major;
         
         // Initialize edit values with current profile data
+        // Don't auto-populate temporary usernames to improve UX for new users
         setEditValues({
-          username: userData.username || "",
+          username: isTemporaryUsername(userData.username) ? "" : (userData.username || ""),
           email: userData.email || "",
           year: userData.year || "",
           major: userData.major || "",
@@ -177,8 +184,9 @@ export default function Profile() {
 
   const handleCancelEdit = () => {
     // Reset edit values to current profile data
+    // Don't auto-populate temporary usernames to improve UX for new users
     setEditValues({
-      username: profile?.username || "",
+      username: isTemporaryUsername(profile?.username) ? "" : (profile?.username || ""),
       email: profile?.email || "",
       year: profile?.year || "",
       major: profile?.major || "",
