@@ -9,7 +9,8 @@ import "../styles.css";
 // Helper function to detect if username is temporary (auto-generated)
 const isTemporaryUsername = (username) => {
   if (!username || typeof username !== 'string') return false;
-  return username.startsWith('tempuser');
+  // Match exactly "tempuser" or "tempuser" followed by numbers only
+  return /^tempuser(\d+)?$/.test(username);
 };
 
 // Helper function for Vanderbilt-themed avatar generation (First letter only)
