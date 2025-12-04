@@ -9,19 +9,29 @@ import "../styles.css";
 // Helper function to detect if username is temporary (auto-generated)
 const isTemporaryUsername = (username) => {
   if (!username || typeof username !== 'string') return false;
-  // Match exactly "tempuser" or "tempuser" followed by numbers only
-  return /^tempuser(\d+)?$/.test(username);
+  // Match all temporary username patterns:
+  // 1. "tempuser" (first user)
+  // 2. "tempuser{numbers}" (e.g., tempuser2, tempuser123)
+  // 3. "tempuser_{timestamp}_{random}" (fallback pattern like tempuser_04136326_3uho)
+  return /^tempuser(\d+)?$/.test(username) || /^tempuser_\d+_[a-zA-Z0-9]+$/.test(username);
+};
+
+// Helper function to detect if email is temporary (Auth0-generated)
+const isTemporaryEmail = (email) => {
+  if (!email || typeof email !== 'string') return false;
+  // Match Auth0 temporary emails ending with @auth0.temp
+  return email.endsWith('@auth0.temp');
 };
 
 // Helper function for Vanderbilt-themed avatar generation (First letter only)
 const getAvatarText = (username, email, fullName) => {
-  // Try to get first letter from username first
-  if (username && username.trim()) {
+  // Try to get first letter from username first (but skip temporary usernames)
+  if (username && username.trim() && !isTemporaryUsername(username)) {
     return username.trim()[0].toUpperCase();
   }
   
-  // Fallback to email
-  if (email && email.trim()) {
+  // Fallback to email (but skip temporary emails)
+  if (email && email.trim() && !isTemporaryEmail(email)) {
     return email[0].toUpperCase();
   }
   
@@ -69,10 +79,10 @@ export default function Profile() {
         const isComplete = userData.username && userData.email && userData.year && userData.major;
         
         // Initialize edit values with current profile data
-        // Don't auto-populate temporary usernames to improve UX for new users
+        // Don't auto-populate temporary usernames/emails to improve UX for new users
         setEditValues({
           username: isTemporaryUsername(userData.username) ? "" : (userData.username || ""),
-          email: userData.email || "",
+          email: isTemporaryEmail(userData.email) ? "" : (userData.email || ""),
           year: userData.year || "",
           major: userData.major || "",
         });
@@ -185,10 +195,10 @@ export default function Profile() {
 
   const handleCancelEdit = () => {
     // Reset edit values to current profile data
-    // Don't auto-populate temporary usernames to improve UX for new users
+    // Don't auto-populate temporary usernames/emails to improve UX for new users
     setEditValues({
       username: isTemporaryUsername(profile?.username) ? "" : (profile?.username || ""),
-      email: profile?.email || "",
+      email: isTemporaryEmail(profile?.email) ? "" : (profile?.email || ""),
       year: profile?.year || "",
       major: profile?.major || "",
     });
