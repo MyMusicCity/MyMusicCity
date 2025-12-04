@@ -845,30 +845,56 @@ app.put("/api/me/profile", auth, async (req, res) => {
     
     // Update username if provided and valid
     if (username && username.trim() && username !== user.username) {
-      const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 20);
-      if (cleanUsername.length >= 2) {
-        // Check if username is available
-        const existingUser = await User.findOne({ username: cleanUsername, _id: { $ne: user._id } });
-        if (existingUser) {
-          return res.status(400).json({
-            error: "USERNAME_TAKEN",
-            message: "Username already taken. Please choose another."
-          });
-        }
-        user.username = cleanUsername;
+      const trimmedUsername = username.trim();
+      
+      // Basic username validation (allow letters, numbers, underscores, hyphens)
+      if (!/^[a-zA-Z0-9_-]{2,20}$/.test(trimmedUsername)) {
+        return res.status(400).json({
+          error: "INVALID_USERNAME",
+          message: "Username must be 2-20 characters and contain only letters, numbers, underscores, or hyphens."
+        });
       }
+      
+      // Check if username is available (case-insensitive)
+      const existingUser = await User.findOne({ 
+        username: { $regex: new RegExp(`^${trimmedUsername}$`, 'i') }, 
+        _id: { $ne: user._id } 
+      });
+      if (existingUser) {
+        return res.status(400).json({
+          error: "USERNAME_TAKEN",
+          message: "Username already taken. Please choose another."
+        });
+      }
+      user.username = trimmedUsername;
     }
     
     // Update email if provided and valid
     if (email && email.trim() && email !== user.email) {
+      const trimmedEmail = email.trim().toLowerCase();
+      
+      // Basic email validation
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email.trim())) {
+      if (!emailRegex.test(trimmedEmail)) {
         return res.status(400).json({
           error: "INVALID_EMAIL",
           message: "Please enter a valid email address."
         });
       }
-      user.email = email.trim().toLowerCase();
+      
+      // Check if email is already taken (excluding current user)
+      const existingUser = await User.findOne({ 
+        email: trimmedEmail, 
+        _id: { $ne: user._id } 
+      });
+      if (existingUser) {
+        return res.status(400).json({
+          error: "EMAIL_TAKEN",
+          message: "Email already registered. Please use a different email."
+        });
+      }
+      
+      user.email = trimmedEmail;
     }
 
     await user.save();

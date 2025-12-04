@@ -167,8 +167,14 @@ export default function Profile() {
       console.error("Failed to update profile:", err);
       if (err.message.includes("USERNAME_TAKEN")) {
         setError("Username already taken. Please choose another.");
+      } else if (err.message.includes("INVALID_USERNAME")) {
+        setError("Username must be 2-20 characters and contain only letters, numbers, underscores, or hyphens.");
       } else if (err.message.includes("INVALID_EMAIL")) {
         setError("Please enter a valid email address.");
+      } else if (err.message.includes("EMAIL_TAKEN")) {
+        setError("Email already registered. Please use a different email.");
+      } else if (err.message.includes("INCOMPLETE_PROFILE_DATA")) {
+        setError("Please fill in all required fields (year and major).");
       } else {
         setError(err.message || "Failed to save profile. Please try again.");
       }
@@ -378,7 +384,7 @@ export default function Profile() {
   }
 
   const avatarLetter = getAvatarText(profile?.username, profile?.email, auth0User?.name);
-  const profileIncomplete = !profile?.username || !profile?.email || !profile?.year || !profile?.major;
+  const profileIncomplete = isTemporaryUsername(profile?.username) || isTemporaryEmail(profile?.email) || !profile?.year || !profile?.major;
 
   return (
     <div className="profile-page">
@@ -389,8 +395,12 @@ export default function Profile() {
           <div className="profile-avatar">{avatarLetter}</div>
         )}
         
-        <h2 className="profile-name">{profile?.username || "User"}</h2>
-        <p className="profile-email">{profile?.email || "No email set"}</p>
+        <h2 className="profile-name">
+          {isTemporaryUsername(profile?.username) ? "New User" : (profile?.username || "User")}
+        </h2>
+        <p className="profile-email">
+          {isTemporaryEmail(profile?.email) ? "Email not set" : (profile?.email || "No email set")}
+        </p>
         
         {profile?.createdAt && (
           <p className="profile-date">
@@ -473,8 +483,8 @@ export default function Profile() {
         ) : (
           <div className="profile-display">
             <div className="profile-details">
-              <p><strong>Username:</strong> {profile?.username || "Not set"}</p>
-              <p><strong>Email:</strong> {profile?.email || "Not set"}</p>
+              <p><strong>Username:</strong> {isTemporaryUsername(profile?.username) ? "Not set" : (profile?.username || "Not set")}</p>
+              <p><strong>Email:</strong> {isTemporaryEmail(profile?.email) ? "Not set" : (profile?.email || "Not set")}</p>
               <p><strong>Year:</strong> {profile?.year || "Not set"}</p>
               <p><strong>Major:</strong> {profile?.major || "Not set"}</p>
             </div>
